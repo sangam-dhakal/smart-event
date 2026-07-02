@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
+import 'package:smart_event_app/admin/admin_event_report_page.dart';
 import 'package:smart_event_app/admin/super_admin_service.dart';
 import 'package:smart_event_app/auth/login_page.dart';
 import 'package:smart_event_app/services/auth_service.dart';
@@ -18,8 +20,41 @@ class SuperAdminDashboard extends StatefulWidget {
 
 class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
   int currentIndex = 0;
+  StreamSubscription? _banListener;
 
   bool get isSuperAdmin => widget.role == 'super_admin';
+
+  @override
+  void initState() {
+    super.initState();
+    // Watch for Instant Suspend (If a Super Admin bans a Staff Admin while they are using the app)
+    _banListener = FirebaseFirestore.instance
+        .collection('users')
+        .doc(AuthService().currentUserId)
+        .snapshots()
+        .listen((doc) {
+      if (doc.exists && doc.data()?['disabled'] == true) {
+        _forceLogout();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _banListener?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _forceLogout() async {
+    await AuthService().logout();
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+            (route) => false,
+      );
+    }
+  }
 
   List<Widget> get _pages {
     return [
@@ -45,22 +80,15 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(isSuperAdmin ? "Super Admin Platform" : "Staff Management", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+        title: Text(isSuperAdmin ? "Super Admin Platform" : "Staff Management",
+            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
         backgroundColor: Colors.red.shade900,
         elevation: 5,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
             tooltip: "Logout",
-            onPressed: () async {
-              await AuthService().logout();
-              if (!mounted) return;
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginPage()),
-                (route) => false,
-              );
-            },
+            onPressed: _forceLogout,
           ),
         ],
       ),
@@ -85,6 +113,7 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
 // ─── TAB 1: USERS MANAGEMENT ───
 class _UsersTab extends StatefulWidget {
   const _UsersTab();
+
   @override
   State<_UsersTab> createState() => _UsersTabState();
 }
@@ -117,7 +146,8 @@ class _UsersTabState extends State<_UsersTab> {
         }
         if (snapshot.hasError) {
           return Center(
-            child: Text("Verification Failed: ${snapshot.error}", style: const TextStyle(color: Colors.red)),
+            child: Text("Verification Failed: ${snapshot.error}",
+                style: const TextStyle(color: Colors.red)),
           );
         }
 
@@ -134,7 +164,9 @@ class _UsersTabState extends State<_UsersTab> {
             final name = user['displayName'] ?? 'Unknown User';
             final role = (user['role'] ?? 'unknown').toString().toUpperCase();
             final disabled = user['disabled'] == true;
+
             final isMe = uid == currentUid;
+            final isSuperAdminRole = role == 'SUPER_ADMIN';
 
             return Card(
               margin: EdgeInsets.only(bottom: 12.h),
@@ -151,37 +183,41 @@ class _UsersTabState extends State<_UsersTab> {
                 title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text("$email\nRole: $role"),
                 isThreeLine: true,
-                trailing: isMe 
-                    ? const Chip(label: Text("YOU", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)))
+
+                // Hide the toggle switch completely if they are the Super Admin or Themselves
+                trailing: (isMe || isSuperAdminRole)
+                    ? Chip(label: Text(isSuperAdminRole ? "ADMIN" : "YOU",
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)))
                     : Switch(
-                        value: !disabled,
-                        activeColor: Colors.green,
-                        inactiveThumbColor: Colors.red,
-                        inactiveTrackColor: Colors.red.shade200,
-                        onChanged: (val) async {
-                          // The value is true if we want them ENABLED, false if DISABLED.
-                          final disableAction = !val;
-                          try {
-                            await _service.toggleUserStatus(uid, disableAction);
-                            _fetchUsers(); // Refresh silently
-                            
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(disableAction ? "User Suspended!" : "User Activated!"),
-                                  backgroundColor: disableAction ? Colors.red : Colors.green,
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Failed to alter user status."), backgroundColor: Colors.red),
-                              );
-                            }
-                          }
-                        },
-                      ),
+                  value: !disabled,
+                  activeColor: Colors.green,
+                  inactiveThumbColor: Colors.red,
+                  inactiveTrackColor: Colors.red.shade200,
+                  onChanged: (val) async {
+                    // The value is true if we want them ENABLED, false if DISABLED.
+                    final disableAction = !val;
+                    try {
+                      await _service.toggleUserStatus(uid, disableAction);
+                      _fetchUsers(); // Refresh silently
+
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(disableAction ? "User Suspended!" : "User Activated!"),
+                            backgroundColor: disableAction ? Colors.red : Colors.green,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Failed to alter user status."),
+                              backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  },
+                ),
               ),
             );
           },
@@ -215,8 +251,10 @@ class _ApprovalsTab extends StatelessWidget {
               children: [
                 Icon(Icons.check_circle_outline, size: 72.sp, color: Colors.grey.shade400),
                 Gap(16.h),
-                Text("All caught up!", style: TextStyle(fontSize: 18.sp, color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
-                Text("No pending events require verification.", style: TextStyle(color: Colors.grey.shade500)),
+                Text("All caught up!", style: TextStyle(
+                    fontSize: 18.sp, color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+                Text("No pending events require verification.",
+                    style: TextStyle(color: Colors.grey.shade500)),
               ],
             ),
           );
@@ -241,7 +279,8 @@ class _ApprovalsTab extends StatelessWidget {
                       children: [
                         const Icon(Icons.assignment, color: Colors.orange),
                         Gap(8.w),
-                        Expanded(child: Text(data['title'] ?? 'Untitled Event', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+                        Expanded(child: Text(data['title'] ?? 'Untitled Event',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
                       ],
                     ),
                     Gap(8.h),
@@ -254,8 +293,11 @@ class _ApprovalsTab extends StatelessWidget {
                           icon: const Icon(Icons.close, color: Colors.red),
                           label: const Text("Reject", style: TextStyle(color: Colors.red)),
                           onPressed: () async {
-                            await FirebaseFirestore.instance.collection('events').doc(doc.id).update({'approvalStatus': 'rejected'});
-                            
+                            await FirebaseFirestore.instance
+                                .collection('events')
+                                .doc(doc.id)
+                                .update({'approvalStatus': 'rejected'});
+
                             // Send targeted rejection notification to Organizer
                             await FirebaseFirestore.instance.collection("notifications").add({
                               "title": "Event Verification Failed",
@@ -263,7 +305,7 @@ class _ApprovalsTab extends StatelessWidget {
                               "time": FieldValue.serverTimestamp(),
                               "isRead": false,
                               "eventId": doc.id,
-                              "targetUserId": data['organizerId'], 
+                              "targetUserId": data['organizerId'],
                             });
                           },
                         ),
@@ -273,8 +315,11 @@ class _ApprovalsTab extends StatelessWidget {
                           icon: const Icon(Icons.check, color: Colors.white),
                           label: const Text("Approve", style: TextStyle(color: Colors.white)),
                           onPressed: () async {
-                            await FirebaseFirestore.instance.collection('events').doc(doc.id).update({'approvalStatus': 'approved'});
-                            
+                            await FirebaseFirestore.instance
+                                .collection('events')
+                                .doc(doc.id)
+                                .update({'approvalStatus': 'approved'});
+
                             // Send targeted approval notification to Organizer
                             await FirebaseFirestore.instance.collection("notifications").add({
                               "title": "Event Approved!",
@@ -282,7 +327,7 @@ class _ApprovalsTab extends StatelessWidget {
                               "time": FieldValue.serverTimestamp(),
                               "isRead": false,
                               "eventId": doc.id,
-                              "targetUserId": data['organizerId'], 
+                              "targetUserId": data['organizerId'],
                             });
                           },
                         ),
@@ -308,7 +353,10 @@ class _EventsTab extends StatelessWidget {
     final SuperAdminService service = SuperAdminService();
 
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('events').orderBy('createdAt', descending: true).snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('events')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: Colors.red));
@@ -327,49 +375,63 @@ class _EventsTab extends StatelessWidget {
             final doc = docs[index];
             final data = doc.data() as Map<String, dynamic>;
             final approvalStatus = data['approvalStatus'] ?? 'approved';
-            
+
             return Card(
               margin: EdgeInsets.only(bottom: 12.h),
               elevation: 2,
               child: ListTile(
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                      AdminEventReportPage(eventId: doc.id, eventData: data)));
+                },
                 leading: const Icon(Icons.event, color: Colors.indigo),
                 title: Row(
                   children: [
-                    Expanded(child: Text(data['title'] ?? 'Untitled Event', style: const TextStyle(fontWeight: FontWeight.bold))),
-                    if (approvalStatus == 'pending') const Icon(Icons.access_time, color: Colors.orange, size: 16),
+                    Expanded(child: Text(data['title'] ?? 'Untitled Event', style: const TextStyle(
+                        fontWeight: FontWeight.bold))),
+                    if (approvalStatus == 'pending') const Icon(
+                        Icons.access_time, color: Colors.orange, size: 16),
                   ],
                 ),
-                subtitle: Text("Host: ${data['organizer'] ?? 'Unknown'}\nVenue: ${data['venue'] ?? ''}\nStatus: ${approvalStatus.toUpperCase()}"),
+                subtitle: Text("Host: ${data['organizer'] ?? 'Unknown'}\nVenue: ${data['venue'] ??
+                    ''}\nStatus: ${approvalStatus.toUpperCase()}"),
                 isThreeLine: true,
                 trailing: IconButton(
                   icon: const Icon(Icons.delete_forever, color: Colors.red, size: 28),
                   tooltip: "Force Delete Event",
                   onPressed: () async {
                     final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        title: const Text("Delete Event globally?", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                        content: const Text("This action is irreversible. It removes the event and wipes all related participants permanently."),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-                            onPressed: () => Navigator.pop(context, true), 
-                            child: const Text("ANNIHILATE"),
-                          ),
-                        ],
-                      )
+                        context: context,
+                        builder: (_) =>
+                            AlertDialog(
+                              title: const Text("Delete Event globally?",
+                                  style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                              content: const Text(
+                                  "This action is irreversible. It removes the event and wipes all related participants permanently."),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(context, false),
+                                    child: const Text("Cancel")),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red, foregroundColor: Colors.white),
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: const Text("ANNIHILATE"),
+                                ),
+                              ],
+                            )
                     );
 
                     if (confirm == true) {
                       try {
                         await service.deleteEvent(doc.id);
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Event annihilated!"), backgroundColor: Colors.red));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                              content: Text("Event annihilated!"), backgroundColor: Colors.red));
                         }
-                      } catch(e) {
+                      } catch (e) {
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Delete Failed: $e"), backgroundColor: Colors.red));
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text("Delete Failed: $e"), backgroundColor: Colors.red));
                         }
                       }
                     }
@@ -387,6 +449,7 @@ class _EventsTab extends StatelessWidget {
 // ─── TAB 4: SYSTEM BROADCAST ───
 class _BroadcastTab extends StatefulWidget {
   const _BroadcastTab();
+
   @override
   State<_BroadcastTab> createState() => _BroadcastTabState();
 }
@@ -414,7 +477,8 @@ class _BroadcastTabState extends State<_BroadcastTab> {
               Text(
                 "System Broadcast",
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.bold, color: Colors.red.shade900),
+                style: TextStyle(
+                    fontSize: 24.sp, fontWeight: FontWeight.bold, color: Colors.red.shade900),
               ),
               Gap(8.h),
               Text(
@@ -449,27 +513,34 @@ class _BroadcastTabState extends State<_BroadcastTab> {
                   foregroundColor: Colors.white,
                   elevation: 3,
                 ),
-                icon: isSending 
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                icon: isSending
+                    ? const SizedBox(width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                     : const Icon(Icons.send_rounded),
-                label: Text(isSending ? "Transmitting..." : "SEND GLOBAL ALERT", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                label: Text(isSending ? "Transmitting..." : "SEND GLOBAL ALERT",
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 onPressed: isSending ? null : () async {
                   if (titleController.text.isEmpty || bodyController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Fields cannot be empty!")));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Fields cannot be empty!")));
                     return;
                   }
 
                   setState(() => isSending = true);
                   try {
-                    await _service.sendGlobalNotification(titleController.text, bodyController.text);
+                    await _service.sendGlobalNotification(
+                        titleController.text, bodyController.text);
                     titleController.clear();
                     bodyController.clear();
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Broadcast Transmitted Globally!"), backgroundColor: Colors.green));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text(
+                          "Broadcast Transmitted Globally!"), backgroundColor: Colors.green));
                     }
                   } catch (e) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Transmission Error: $e"), backgroundColor: Colors.red));
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
+                          "Transmission Error: $e"), backgroundColor: Colors.red));
                     }
                   } finally {
                     if (mounted) setState(() => isSending = false);
@@ -487,6 +558,7 @@ class _BroadcastTabState extends State<_BroadcastTab> {
 // ─── TAB 5: STAFF MANAGEMENT (SUPER ADMIN ONLY) ───
 class _StaffTab extends StatefulWidget {
   const _StaffTab();
+
   @override
   State<_StaffTab> createState() => _StaffTabState();
 }
@@ -536,29 +608,39 @@ class _StaffTabState extends State<_StaffTab> {
                   padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 16.w),
                 ),
                 onPressed: isAdding ? null : () async {
-                  if (emailController.text.trim().isEmpty) return;
+                  if (emailController.text
+                      .trim()
+                      .isEmpty) return;
                   setState(() => isAdding = true);
                   try {
                     await _service.addStaff(emailController.text.trim());
                     emailController.clear();
                     _fetchStaff();
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Staff added successfully!"), backgroundColor: Colors.green));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text("Staff added successfully!"),
+                          backgroundColor: Colors.green));
                     }
-                  } catch(e) {
+                  } catch (e) {
                     if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceAll('Exception: ', '')), backgroundColor: Colors.red));
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e
+                          .toString()
+                          .replaceAll('Exception: ', '')), backgroundColor: Colors.red));
                     }
                   } finally {
                     if (mounted) setState(() => isAdding = false);
                   }
                 },
-                child: isAdding ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text("ADD"),
+                child: isAdding
+                    ? const SizedBox(width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text("ADD"),
               ),
             ],
           ),
         ),
-        
+
         // Staff List
         Expanded(
           child: FutureBuilder<List<dynamic>>(
@@ -568,7 +650,8 @@ class _StaffTabState extends State<_StaffTab> {
                 return const Center(child: CircularProgressIndicator(color: Colors.red));
               }
               if (snapshot.hasError) {
-                return Center(child: Text("Error fetching staff: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
+                return Center(child: Text("Error fetching staff: ${snapshot.error}",
+                    style: const TextStyle(color: Colors.red)));
               }
 
               final staff = snapshot.data ?? [];
@@ -580,7 +663,7 @@ class _StaffTabState extends State<_StaffTab> {
                 itemBuilder: (context, index) {
                   final s = staff[index];
                   final email = s['email'];
-                  
+
                   return Card(
                     margin: EdgeInsets.only(bottom: 8.h),
                     child: ListTile(
@@ -596,9 +679,13 @@ class _StaffTabState extends State<_StaffTab> {
                           try {
                             await _service.removeStaff(email);
                             _fetchStaff();
-                            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Staff removed"), backgroundColor: Colors.green));
-                          } catch(e) {
-                            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to remove: $e"), backgroundColor: Colors.red));
+                            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text("Staff removed"), backgroundColor: Colors.green));
+                          } catch (e) {
+                            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Failed to remove: $e"),
+                                    backgroundColor: Colors.red));
                           }
                         },
                       ),

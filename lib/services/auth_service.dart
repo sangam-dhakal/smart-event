@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   final _auth = FirebaseAuth.instance;
@@ -60,17 +61,24 @@ class AuthService {
     String email,
     String password,
     String confirm,
-    String role,
-  ) async {
+    String role, {
+    String? orgName,
+    String? department,
+    String? location,
+  }) async {
     final user = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
       password: password,
     );
 
+    // Save core data + Organizer specific data if applicable
     await _db.collection('users').doc(user.user!.uid).set({
       'name': name.trim(),
       'email': email.trim(),
       'role': role,
+      if (role == 'organizer' && orgName != null) 'orgName': orgName.trim(),
+      if (role == 'organizer' && department != null) 'department': department.trim(),
+      if (role == 'organizer' && location != null) 'location': location.trim(),
     });
 
     // Attempt to link invitations
@@ -163,8 +171,7 @@ class AuthService {
     final doc = await _db.collection('users').doc(uid).get();
     if (doc.exists && doc.data()!.containsKey('role')) {
       String r = doc['role'] ?? "";
-      if (r == 'admin')
-        return 'organizer'; // Legacy mapping so old accounts don't break
+      if (r == 'admin') return 'organizer'; // Legacy mapping so old accounts don't break
       return r;
     } else {
       return ""; // Default to empty to force role selection
@@ -178,14 +185,13 @@ class AuthService {
 
   /// Flushes current caching configurations and breaks Active Firebase Session mappings
   Future<void> logout() async {
+    // Clear management cache so a different user isn't accidentally logged in as admin
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('isManagement');
+    await prefs.remove('managementRole');
+
     await _googleSignIn.signOut();
     await _auth.signOut();
-
-    // Note: We deliberately DO NOT call _db.terminate() here.
-    // Calling terminate completely shuts down Firebase's real-time connection.
-    // If a user logs out and logs into a different account on the same phone,
-    // their StreamBuilders will fail to receive real-time updates unless the app is hard-restarted.
-    // Our notification cache bug is already fixed via proper Firestore queries!
   }
 }
 

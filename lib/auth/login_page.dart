@@ -6,6 +6,7 @@ import 'package:gap/gap.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_event_app/admin/super_admin_dashboard.dart';
 import 'package:smart_event_app/admin/super_admin_service.dart';
+import 'package:smart_event_app/auth/forgot_password_page.dart';
 import 'package:smart_event_app/auth/register_page.dart';
 import 'package:smart_event_app/auth/role_selection_page.dart';
 import 'package:smart_event_app/participant/participant_pages.dart';
@@ -71,7 +72,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         context,
         MaterialPageRoute(builder: (_) => const RoleSelectionPage()),
       );
-      return;
+      return; 
     }
 
     if (role == 'organizer') {
@@ -85,7 +86,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         MaterialPageRoute(builder: (_) => const ParticipantPages()),
       );
     }
-
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text(
@@ -94,9 +95,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ),
         behavior: SnackBarBehavior.floating,
         backgroundColor: AppColors.success,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10.r),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -127,7 +126,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                       Gap(30.h),
-
+                      
                       TextFormField(
                         controller: emailController,
                         textInputAction: TextInputAction.next,
@@ -136,15 +135,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           prefixIcon: Icon(Icons.email_outlined),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty)
-                            return "Email is required";
-                          if (!value.contains("@"))
-                            return "Enter a valid email";
+                          if (value == null || value.isEmpty) return "Email is required";
+                          if (!value.contains("@")) return "Enter a valid email";
                           return null;
                         },
                       ),
                       Gap(16.h),
-
+                      
                       TextFormField(
                         controller: passwordController,
                         textInputAction: TextInputAction.done,
@@ -152,22 +149,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           labelText: "Password",
                           prefixIcon: const Icon(Icons.lock_outline),
                           suffixIcon: IconButton(
-                            onPressed: () =>
-                                setState(() => isToggle = !isToggle),
-                            icon: Icon(
-                              isToggle
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
-                            ),
+                            onPressed: () => setState(() => isToggle = !isToggle),
+                            icon: Icon(isToggle ? Icons.visibility_off : Icons.visibility),
                           ),
                         ),
                         obscureText: isToggle,
                         obscuringCharacter: "•",
                         validator: (value) {
-                          if (value == null || value.isEmpty)
-                            return "Password is required";
-                          if (value.length < 8)
-                            return "Password must be at least 8 characters";
+                          if (value == null || value.isEmpty) return "Password is required";
+                          if (value.length < 8) return "Password must be at least 8 characters";
                           return null;
                         },
                       ),
@@ -181,7 +171,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               : () async {
                                   if (_loginKey.currentState!.validate()) {
                                     setState(() => isLoading = true);
-
+                                    
                                     // Handle local save preference
                                     await _handleRememberMe();
 
@@ -196,49 +186,26 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                       if (user != null) {
                                         String? managementRole;
                                         try {
-                                          managementRole =
-                                              await SuperAdminService()
-                                                  .checkManagementRole()
-                                                  .timeout(
-                                                    const Duration(seconds: 5),
-                                                  );
+                                          managementRole = await SuperAdminService().checkManagementRole().timeout(const Duration(seconds: 5));
                                         } catch (err) {
-                                          debugPrint(
-                                            "🔴 Super Admin API Check Failed: $err",
-                                          );
+                                          debugPrint("🔴 Super Admin API Check Failed: $err");
                                         }
 
                                         if (managementRole != null) {
                                           if (!mounted) return;
-                                          Navigator.pushReplacement(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  SuperAdminDashboard(
-                                                    role: managementRole!,
-                                                  ),
-                                            ),
-                                          );
+                                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => SuperAdminDashboard(role: managementRole!)));
                                           return;
                                         }
 
-                                        final role = await auth.getRole(
-                                          user.uid,
-                                        );
+                                        final role = await auth.getRole(user.uid);
                                         navigateBasedOnRole(role);
                                       }
                                     } catch (e) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text("Login Failed: $e"),
-                                          backgroundColor: AppColors.error,
-                                        ),
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text("Login Failed: $e"), backgroundColor: AppColors.error),
                                       );
                                     } finally {
-                                      if (mounted)
-                                        setState(() => isLoading = false);
+                                      if (mounted) setState(() => isLoading = false);
                                     }
                                   }
                                 },
@@ -246,10 +213,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               ? SizedBox(
                                   height: 20.h,
                                   width: 20.h,
-                                  child: const CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
-                                  ),
+                                  child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                                 )
                               : const Text("Login"),
                         ),
@@ -261,10 +225,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           const Expanded(child: Divider()),
                           Padding(
                             padding: EdgeInsets.symmetric(horizontal: 16.w),
-                            child: Text(
-                              "OR",
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
+                            child: Text("OR", style: Theme.of(context).textTheme.bodyMedium),
                           ),
                           const Expanded(child: Divider()),
                         ],
@@ -278,10 +239,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             'assets/image/google-icon-logo.svg',
                             height: 24.h,
                           ),
-                          label: const Text(
-                            "Continue with Google",
-                            style: TextStyle(color: AppColors.textPrimary),
-                          ),
+                          label: const Text("Continue with Google", style: TextStyle(color: AppColors.textPrimary)),
                           onPressed: isLoading
                               ? null
                               : () async {
@@ -293,28 +251,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                     if (user != null) {
                                       String? managementRole;
                                       try {
-                                        managementRole =
-                                            await SuperAdminService()
-                                                .checkManagementRole()
-                                                .timeout(
-                                                  const Duration(seconds: 5),
-                                                );
+                                        managementRole = await SuperAdminService().checkManagementRole().timeout(const Duration(seconds: 5));
                                       } catch (err) {
-                                        debugPrint(
-                                          "🔴 Super Admin API Check Failed: $err",
-                                        );
+                                        debugPrint("🔴 Super Admin API Check Failed: $err");
                                       }
 
                                       if (managementRole != null) {
                                         if (!mounted) return;
-                                        Navigator.pushReplacement(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => SuperAdminDashboard(
-                                              role: managementRole!,
-                                            ),
-                                          ),
-                                        );
+                                        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => SuperAdminDashboard(role: managementRole!)));
                                         return;
                                       }
 
@@ -323,16 +267,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                     }
                                   } catch (e) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          "Google Sign-In Failed: $e",
-                                        ),
-                                        backgroundColor: AppColors.error,
-                                      ),
+                                      SnackBar(content: Text("Google Sign-In Failed: $e"), backgroundColor: AppColors.error),
                                     );
                                   } finally {
-                                    if (mounted)
-                                      setState(() => isLoading = false);
+                                    if (mounted) setState(() => isLoading = false);
                                   }
                                 },
                         ),
@@ -355,7 +293,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             ],
                           ),
                           TextButton(
-                            onPressed: () {},
+                            onPressed: () {
+                              Navigator.push(context, MaterialPageRoute(builder: (_) => const ForgotPasswordPage()));
+                            },
                             child: const Text("Forgot Password?"),
                           ),
                         ],
@@ -365,14 +305,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) => const RegisterPage(),
-                            ),
+                            MaterialPageRoute(builder: (_) => const RegisterPage()),
                           );
                         },
-                        child: const Text(
-                          "Don't have an account? Register here",
-                        ),
+                        child: const Text("Don't have an account? Register here"),
                       ),
                     ],
                   ),

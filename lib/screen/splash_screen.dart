@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_event_app/admin/super_admin_dashboard.dart';
 import 'package:smart_event_app/admin/super_admin_service.dart';
 import 'package:smart_event_app/auth/login_page.dart';
@@ -49,6 +50,11 @@ class _SplashScreenState extends State<SplashScreen> {
               .timeout(const Duration(seconds: 4));
         } catch (err) {
           debugPrint("🔴 Offline or timeout when verifying super admin: $err");
+          // FALLBACK: Read from cache if user opens app without internet
+          final prefs = await SharedPreferences.getInstance();
+          if (prefs.getBool('isManagement') == true) {
+            managementRole = prefs.getString('managementRole');
+          }
         }
 
         if (managementRole != null && mounted) {

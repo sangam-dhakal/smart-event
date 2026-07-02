@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SuperAdminService {
   String get _baseUrl {
@@ -14,22 +15,28 @@ class SuperAdminService {
   Future<String?> checkManagementRole() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return null;
-
+    
     try {
       final token = await user.getIdToken();
       final res = await http.get(
         Uri.parse('$_baseUrl/api/super-admin/check'),
         headers: {'Authorization': 'Bearer $token'},
       );
-
+      
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['isManagement'] == true) {
+          // Cache successful authorization so offline restarts don't downgrade the admin
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('isManagement', true);
+          await prefs.setString('managementRole', data['role']);
+          
           return data['role'];
         }
       }
     } catch (e) {
       debugPrint('Management Verification Check Error: $e');
+      rethrow; // Rethrow to trigger the splash screen fallback block
     }
     return null;
   }
@@ -38,13 +45,13 @@ class SuperAdminService {
   Future<List<dynamic>> getUsers() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return [];
-
+    
     final token = await user.getIdToken();
     final res = await http.get(
       Uri.parse('$_baseUrl/api/super-admin/users'),
       headers: {'Authorization': 'Bearer $token'},
     );
-
+    
     if (res.statusCode == 200) {
       return jsonDecode(res.body)['users'] ?? [];
     } else {
@@ -56,7 +63,7 @@ class SuperAdminService {
   Future<void> toggleUserStatus(String uid, bool disable) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
+    
     final token = await user.getIdToken();
     final res = await http.post(
       Uri.parse('$_baseUrl/api/super-admin/users/$uid/toggle'),
@@ -66,7 +73,7 @@ class SuperAdminService {
       },
       body: jsonEncode({'disabled': disable}),
     );
-
+    
     if (res.statusCode != 200) {
       throw Exception('Failed to toggle user status');
     }
@@ -76,13 +83,13 @@ class SuperAdminService {
   Future<void> deleteEvent(String eventId) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
+    
     final token = await user.getIdToken();
     final res = await http.delete(
       Uri.parse('$_baseUrl/api/super-admin/events/$eventId'),
       headers: {'Authorization': 'Bearer $token'},
     );
-
+    
     if (res.statusCode != 200) {
       throw Exception('Failed to delete event');
     }
@@ -92,7 +99,7 @@ class SuperAdminService {
   Future<void> sendGlobalNotification(String title, String body) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
+    
     final token = await user.getIdToken();
     final res = await http.post(
       Uri.parse('$_baseUrl/api/super-admin/global-notification'),
@@ -102,7 +109,7 @@ class SuperAdminService {
       },
       body: jsonEncode({'title': title, 'body': body}),
     );
-
+    
     if (res.statusCode != 200) {
       throw Exception('Failed to broadcast notification');
     }
@@ -113,13 +120,13 @@ class SuperAdminService {
   Future<List<dynamic>> getStaff() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return [];
-
+    
     final token = await user.getIdToken();
     final res = await http.get(
       Uri.parse('$_baseUrl/api/super-admin/staff'),
       headers: {'Authorization': 'Bearer $token'},
     );
-
+    
     if (res.statusCode == 200) {
       return jsonDecode(res.body)['staff'] ?? [];
     } else {
@@ -130,7 +137,7 @@ class SuperAdminService {
   Future<void> addStaff(String email) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
+    
     final token = await user.getIdToken();
     final res = await http.post(
       Uri.parse('$_baseUrl/api/super-admin/staff'),
@@ -140,7 +147,7 @@ class SuperAdminService {
       },
       body: jsonEncode({'email': email}),
     );
-
+    
     if (res.statusCode != 200) {
       final error = jsonDecode(res.body)['error'] ?? 'Failed to add staff';
       throw Exception(error);
@@ -150,13 +157,13 @@ class SuperAdminService {
   Future<void> removeStaff(String email) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
+    
     final token = await user.getIdToken();
     final res = await http.delete(
       Uri.parse('$_baseUrl/api/super-admin/staff/$email'),
       headers: {'Authorization': 'Bearer $token'},
     );
-
+    
     if (res.statusCode != 200) {
       throw Exception('Failed to remove staff');
     }

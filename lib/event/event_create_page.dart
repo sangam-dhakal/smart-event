@@ -25,7 +25,10 @@ class _EventCreatePageState extends State<EventCreatePage> {
   final titleController = TextEditingController();
   final organizerController = TextEditingController();
   final organizationController = TextEditingController();
+  final departmentController = TextEditingController(); // NEW
   final venueController = TextEditingController();
+  final descriptionController = TextEditingController(); // NEW
+  final capacityController = TextEditingController(); // NEW
 
   DateTime? selectedDate;
   TimeOfDay? selectedTime;
@@ -36,6 +39,37 @@ class _EventCreatePageState extends State<EventCreatePage> {
   double? selectedLat;
   double? selectedLng;
   bool isSearching = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.eventData != null && widget.docId != null) {
+      fillForm(widget.eventData!, widget.docId!);
+    } else {
+      // It's a new event, fetch and pre-fill organizer profile data
+      _prefillFromProfile();
+    }
+  }
+
+  // Auto-fetch the user's saved Organizer Profile details
+  Future<void> _prefillFromProfile() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      if (doc.exists && mounted) {
+        final data = doc.data()!;
+        setState(() {
+          organizerController.text = data['name'] ?? '';
+          organizationController.text = data['orgName'] ?? '';
+          departmentController.text = data['department'] ?? '';
+          venueController.text = data['location'] ?? ''; 
+        });
+      }
+    } catch (e) {
+      debugPrint("Failed to load organizer profile for pre-fill: $e");
+    }
+  }
 
   // Nominatim search (FREE - no API key)
   Future<void> searchVenue(String query) async {
@@ -54,7 +88,7 @@ class _EventCreatePageState extends State<EventCreatePage> {
       );
 
       final response = await http.get(uri, headers: {
-        'User-Agent': 'EventSmartApp/1.0', // Nominatim ko rule hare
+        'User-Agent': 'EventSmartApp/1.0', 
       });
 
       if (response.statusCode == 200) {
@@ -123,16 +157,18 @@ class _EventCreatePageState extends State<EventCreatePage> {
       titleController.text = data['title'] ?? '';
       organizerController.text = data['organizer'] ?? '';
       organizationController.text = data['organization'] ?? '';
+      departmentController.text = data['department'] ?? '';
       venueController.text = data['venue'] ?? '';
+      descriptionController.text = data['description'] ?? '';
+      capacityController.text = data['maxCapacity']?.toString() ?? '';
+      
       selectedDate = safeDate(data['date']);
       selectedLat = (data['lat'] as num?)?.toDouble();
       selectedLng = (data['lng'] as num?)?.toDouble();
 
-      // Safe parsing for time
       if (data['time'] != null) {
         try {
-          final timeString = data['time']
-              .toString(); // convert to string just in case
+          final timeString = data['time'].toString();
           final parts = timeString.split(':');
           if (parts.length >= 2) {
             final hour = int.tryParse(parts[0]) ?? 0;
@@ -140,7 +176,7 @@ class _EventCreatePageState extends State<EventCreatePage> {
             selectedTime = TimeOfDay(hour: hour, minute: minute);
           }
         } catch (e) {
-          selectedTime = null; // fallback if parsing fails
+          selectedTime = null; 
         }
       }
     });
@@ -151,25 +187,36 @@ class _EventCreatePageState extends State<EventCreatePage> {
     if (titleController.text.isEmpty ||
         organizerController.text.isEmpty ||
         venueController.text.isEmpty ||
+        descriptionController.text.isEmpty ||
+        capacityController.text.isEmpty ||
         selectedDate == null ||
         selectedTime == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Please fill all fields"), backgroundColor: AppColors.error));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please fill all required fields"), backgroundColor: AppColors.error)
+      );
+      return;
+    }
+
+    int? capacity = int.tryParse(capacityController.text.trim());
+    if (capacity == null || capacity <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Max Capacity must be a valid positive number"), backgroundColor: AppColors.error)
+      );
       return;
     }
 
     final data = {
-      "title": titleController.text,
-      "organizer": organizerController.text,
-      "organization": organizationController.text,
-      "venue": venueController.text,
-       "lat": selectedLat, 
-  "lng": selectedLng,
+      "title": titleController.text.trim(),
+      "organizer": organizerController.text.trim(),
+      "organization": organizationController.text.trim(),
+      "department": departmentController.text.trim(),
+      "description": descriptionController.text.trim(),
+      "maxCapacity": capacity,
+      "venue": venueController.text.trim(),
+      "lat": selectedLat, 
+      "lng": selectedLng,
       "date": Timestamp.fromDate(selectedDate!),
-      
-      "time":
-          "${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}",
+      "time": "${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}",
       "organizerId": FirebaseAuth.instance.currentUser!.uid,
     };
 
@@ -180,28 +227,11 @@ class _EventCreatePageState extends State<EventCreatePage> {
       service.createEvent(data);
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Event Saved successfully"), backgroundColor: AppColors.success));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Event Saved successfully"), backgroundColor: AppColors.success)
+    );
 
-    // Clear form
-    titleController.clear();
-    organizerController.clear();
-    organizationController.clear();
-    venueController.clear();
-    setState(() {
-      selectedDate = null;
-      selectedTime = null;
-    });
-    Navigator.pop(context); //previous page ma janxa
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.eventData != null && widget.docId != null) {
-      fillForm(widget.eventData!, widget.docId!);
-    }
+    Navigator.pop(context); 
   }
 
   @override
@@ -209,21 +239,22 @@ class _EventCreatePageState extends State<EventCreatePage> {
     titleController.dispose();
     organizerController.dispose();
     organizationController.dispose();
+    departmentController.dispose();
     venueController.dispose();
+    descriptionController.dispose();
+    capacityController.dispose();
     super.dispose();
   }
 
-  Widget buildTextField(
-    TextEditingController controller,
-    String label,
-    IconData icon,
-  ) {
-    return TextField(
+  Widget buildTextField(TextEditingController controller, String label, IconData icon, {int maxLines = 1, TextInputType type = TextInputType.text}) {
+    return TextFormField(
       controller: controller,
-      textInputAction: TextInputAction.next,
+      textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
+      maxLines: maxLines,
+      keyboardType: type,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon),
+        prefixIcon: maxLines == 1 ? Icon(icon) : null,
       ),
     );
   }
@@ -242,15 +273,29 @@ class _EventCreatePageState extends State<EventCreatePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                buildTextField(titleController, "Event Title", Icons.event),
+                buildTextField(titleController, "Event Title *", Icons.event),
                 const Gap(16),
-                buildTextField(organizerController, "Organizer", Icons.person),
+                buildTextField(descriptionController, "Event Description *", Icons.description, maxLines: 3),
                 const Gap(16),
-                buildTextField(
-                  organizationController,
-                  "Organization",
-                  Icons.business,
+                
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: buildTextField(organizerController, "Host Name *", Icons.person),
+                    ),
+                    Gap(12.w),
+                    Expanded(
+                      flex: 1,
+                      child: buildTextField(capacityController, "Capacity *", Icons.group_add, type: TextInputType.number),
+                    ),
+                  ],
                 ),
+                
+                const Gap(16),
+                buildTextField(organizationController, "Organization Name", Icons.business),
+                const Gap(16),
+                buildTextField(departmentController, "Department", Icons.groups),
                 const Gap(16),
                 
                 // Venue Search
@@ -261,7 +306,7 @@ class _EventCreatePageState extends State<EventCreatePage> {
                       controller: venueController,
                       textInputAction: TextInputAction.next,
                       decoration: InputDecoration(
-                        labelText: "Venue",
+                        labelText: "Venue Location *",
                         prefixIcon: const Icon(Icons.location_on),
                         suffixIcon: isSearching
                             ? const Padding(
@@ -287,11 +332,8 @@ class _EventCreatePageState extends State<EventCreatePage> {
                                 : null,
                       ),
                       onChanged: (value) {
-                        // Debounce
                         Future.delayed(const Duration(milliseconds: 600), () {
-                          if (venueController.text == value) {
-                            searchVenue(value);
-                          }
+                          if (venueController.text == value) searchVenue(value);
                         });
                       },
                     ),
@@ -405,9 +447,9 @@ class _EventCreatePageState extends State<EventCreatePage> {
                           ),
                           title: Text(
                             selectedDate == null
-                                ? "Select Date"
+                                ? "Date *"
                                 : "${selectedDate!.day}-${selectedDate!.month}-${selectedDate!.year}",
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                           ),
                           onTap: pickDate,
                         ),
@@ -427,9 +469,9 @@ class _EventCreatePageState extends State<EventCreatePage> {
                           ),
                           title: Text(
                             selectedTime == null
-                                ? "Select Time"
+                                ? "Time *"
                                 : formatTimeOfDay(selectedTime!),
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                           ),
                           onTap: pickTime,
                         ),

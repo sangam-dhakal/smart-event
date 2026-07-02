@@ -2,13 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:gap/gap.dart';
+import 'package:smart_event_app/theme/app_colors.dart';
 import 'participant_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class ParticipantPage extends StatefulWidget {
   final String eventId;
   final String organizerId;
-  
+
   const ParticipantPage({
     super.key,
     required this.eventId,
@@ -24,6 +25,8 @@ class _ParticipantPageState extends State<ParticipantPage> {
 
   final nameController = TextEditingController();
   final emailController = TextEditingController();
+  final phoneController = TextEditingController(); // NEW
+  final locationController = TextEditingController(); // NEW
 
   Map<String, dynamic>? participantData;
   bool isLoading = false;
@@ -53,7 +56,6 @@ class _ParticipantPageState extends State<ParticipantPage> {
       setState(() {
         participantData = pData;
       });
-
     } catch (e) {
       debugPrint("Failed to load participant page data: $e");
     } finally {
@@ -67,6 +69,8 @@ class _ParticipantPageState extends State<ParticipantPage> {
   void dispose() {
     nameController.dispose();
     emailController.dispose();
+    phoneController.dispose();
+    locationController.dispose();
     super.dispose();
   }
 
@@ -74,8 +78,20 @@ class _ParticipantPageState extends State<ParticipantPage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    if (nameController.text.trim().isEmpty || emailController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("All fields are required")));
+    if (nameController.text
+        .trim()
+        .isEmpty ||
+        emailController.text
+            .trim()
+            .isEmpty ||
+        phoneController.text
+            .trim()
+            .isEmpty ||
+        locationController.text
+            .trim()
+            .isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("All fields are required"), backgroundColor: AppColors.error));
       return;
     }
 
@@ -84,19 +100,23 @@ class _ParticipantPageState extends State<ParticipantPage> {
     try {
       await service.joinEvent(
         userId: user.uid,
-        name: nameController.text,
-        email: emailController.text,
+        name: nameController.text.trim(),
+        email: emailController.text.trim(),
+        phone: phoneController.text.trim(),
+        location: locationController.text.trim(),
         eventId: widget.eventId,
         organizerId: widget.organizerId,
       );
-      
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Request sent! You'll be notified when accepted."), backgroundColor: Colors.green),
+        const SnackBar(content: Text("Request sent! You'll be notified when accepted."),
+            backgroundColor: AppColors.success),
       );
       Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -104,21 +124,22 @@ class _ParticipantPageState extends State<ParticipantPage> {
 
   Future<void> _respondToInvite(String status) async {
     if (participantData == null) return;
-    
+
     setState(() => isLoading = true);
     try {
       await service.respondToInvite(participantData!['docId'], status);
-      
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(status == 'accepted' ? "Invitation Accepted!" : "Invitation Declined."), 
-          backgroundColor: status == 'accepted' ? Colors.green : Colors.red
+            content: Text(status == 'accepted' ? "Invitation Accepted!" : "Invitation Declined."),
+            backgroundColor: status == 'accepted' ? AppColors.success : AppColors.error
         ),
       );
       Navigator.pop(context);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -127,14 +148,13 @@ class _ParticipantPageState extends State<ParticipantPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(backgroundColor: Colors.amber.shade50),
+      appBar: AppBar(title: const Text("Join Event")),
       body: isFetching
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: EdgeInsets.all(16.w),
-              child: _buildBodyContent(),
-            ),
-      backgroundColor: Colors.brown.shade50,
+          : SingleChildScrollView(
+        padding: EdgeInsets.all(24.w),
+        child: _buildBodyContent(),
+      ),
     );
   }
 
@@ -143,42 +163,64 @@ class _ParticipantPageState extends State<ParticipantPage> {
       // ----------------------------------------------------
       // STATE 1: EXPLORE (Not in event yet) -> APPLY FORM
       // ----------------------------------------------------
-      return SingleChildScrollView(
-        child: Card(
-          elevation: 5,
-          child: Padding(
-            padding: EdgeInsets.all(16.w),
-            child: Column(
-              children: [
-                Text("Apply for Event", style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.bold, color: Colors.indigo.shade600)),
-                Gap(16.h),
-                TextFormField(
-                  controller: nameController,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(labelText: "Name", border: OutlineInputBorder()),
+      return Card(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 24.h),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text("Application Form", style: Theme
+                  .of(context)
+                  .textTheme
+                  .headlineMedium),
+              Gap(8.h),
+              Text("Fill out the details below to request a ticket.", style: Theme
+                  .of(context)
+                  .textTheme
+                  .bodyMedium),
+              Gap(24.h),
+              TextFormField(
+                controller: nameController,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                    labelText: "Full Name", prefixIcon: Icon(Icons.person)),
+              ),
+              Gap(16.h),
+              TextFormField(
+                controller: emailController,
+                readOnly: true, // Non-editable as requested
+                style: const TextStyle(color: AppColors.textSecondary),
+                decoration: InputDecoration(
+                  labelText: "Email Address",
+                  prefixIcon: const Icon(Icons.email, color: AppColors.textSecondary),
+                  fillColor: AppColors.textSecondary.withAlpha(20),
                 ),
-                Gap(10.h),
-                TextFormField(
-                  controller: emailController,
-                  textInputAction: TextInputAction.done,
-                  decoration: const InputDecoration(labelText: "Email", border: OutlineInputBorder()),
-                ),
-                Gap(16.h),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.r)),
-                      backgroundColor: Colors.teal.shade400,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(vertical: 12.h),
-                    ),
-                    onPressed: isLoading ? null : _applyForEvent,
-                    child: isLoading ? const CircularProgressIndicator(color: Colors.white) : const Text("Submit Request"),
-                  ),
-                ),
-              ],
-            ),
+              ),
+              Gap(16.h),
+              TextFormField(
+                controller: phoneController,
+                textInputAction: TextInputAction.next,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                    labelText: "Phone Number", prefixIcon: Icon(Icons.phone)),
+              ),
+              Gap(16.h),
+              TextFormField(
+                controller: locationController,
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(
+                    labelText: "Your Location / City", prefixIcon: Icon(Icons.location_city)),
+              ),
+              Gap(32.h),
+              ElevatedButton(
+                onPressed: isLoading ? null : _applyForEvent,
+                child: isLoading
+                    ? const SizedBox(width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text("Submit Request"),
+              ),
+            ],
           ),
         ),
       );
@@ -192,18 +234,25 @@ class _ParticipantPageState extends State<ParticipantPage> {
     // ----------------------------------------------------
     if (status == 'invited') {
       return Card(
-        elevation: 5,
         child: Padding(
-          padding: EdgeInsets.all(24.w),
+          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 30.h),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.mail_outline, size: 64.sp, color: Colors.amber.shade600),
+              Icon(Icons.mail_outline, size: 72.sp, color: AppColors.warning),
               Gap(16.h),
-              Text("You're Invited!", style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.bold, color: Colors.indigo.shade600)),
+              Text("You're Invited!", style: Theme
+                  .of(context)
+                  .textTheme
+                  .headlineMedium
+                  ?.copyWith(color: AppColors.primary)),
               Gap(8.h),
-              Text("The organizer has specially invited you to attend this event.", textAlign: TextAlign.center, style: TextStyle(fontSize: 14.sp, color: Colors.grey.shade700)),
-              Gap(24.h),
+              Text("The organizer has specially invited you to attend this event.",
+                  textAlign: TextAlign.center, style: Theme
+                      .of(context)
+                      .textTheme
+                      .bodyMedium),
+              Gap(32.h),
               if (isLoading)
                 const CircularProgressIndicator()
               else
@@ -211,7 +260,8 @@ class _ParticipantPageState extends State<ParticipantPage> {
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: const BorderSide(color: Colors.red)),
+                        style: OutlinedButton.styleFrom(foregroundColor: AppColors.error,
+                            side: const BorderSide(color: AppColors.error)),
                         onPressed: () => _respondToInvite('rejected'),
                         child: const Text("Decline"),
                       ),
@@ -219,7 +269,7 @@ class _ParticipantPageState extends State<ParticipantPage> {
                     Gap(12.w),
                     Expanded(
                       child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
                         onPressed: () => _respondToInvite('accepted'),
                         child: const Text("Accept"),
                       ),
@@ -237,17 +287,25 @@ class _ParticipantPageState extends State<ParticipantPage> {
     // ----------------------------------------------------
     if (status == 'pending') {
       return Card(
-        elevation: 5,
         child: Padding(
-          padding: EdgeInsets.all(24.w),
+          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 30.h),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.hourglass_top, size: 64.sp, color: Colors.orange.shade400),
+              const Icon(Icons.hourglass_top, size: 72, color: AppColors.warning),
               Gap(16.h),
-              Text("Request Pending", style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: Colors.indigo.shade600)),
+              Text("Request Pending", style: Theme
+                  .of(context)
+                  .textTheme
+                  .headlineMedium
+                  ?.copyWith(color: AppColors.primary)),
               Gap(8.h),
-              Text("Your request to join is awaiting organizer approval. You will be notified once accepted.", textAlign: TextAlign.center, style: TextStyle(fontSize: 14.sp, color: Colors.grey.shade700)),
+              Text(
+                  "Your request to join is awaiting organizer approval. You will be notified once accepted.",
+                  textAlign: TextAlign.center, style: Theme
+                  .of(context)
+                  .textTheme
+                  .bodyMedium),
             ],
           ),
         ),
@@ -259,29 +317,35 @@ class _ParticipantPageState extends State<ParticipantPage> {
     // ----------------------------------------------------
     if (status == 'accepted') {
       return Card(
-        elevation: 5,
         child: Padding(
-          padding: EdgeInsets.all(24.w),
+          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 30.h),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.check_circle_outline, size: 64.sp, color: Colors.green.shade500),
+              const Icon(Icons.check_circle_outline, size: 72, color: AppColors.success),
               Gap(16.h),
-              Text("You're In!", style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+              Text("You're In!", style: Theme
+                  .of(context)
+                  .textTheme
+                  .headlineMedium
+                  ?.copyWith(color: AppColors.success)),
               Gap(8.h),
               Text(
-                type == 'invite' ? "You have accepted the invitation." : "Your request was approved.", 
-                textAlign: TextAlign.center, style: TextStyle(fontSize: 14.sp, color: Colors.grey.shade700)
+                  type == 'invite'
+                      ? "You have accepted the invitation."
+                      : "Your request was approved.",
+                  textAlign: TextAlign.center, style: Theme
+                  .of(context)
+                  .textTheme
+                  .bodyMedium
               ),
-              Gap(24.h),
+              Gap(32.h),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white, padding: EdgeInsets.symmetric(vertical: 12.h)),
                   icon: const Icon(Icons.qr_code),
                   label: const Text("Go to QR Tickets"),
                   onPressed: () {
-                    // Pop this screen to go back to Home
                     Navigator.pop(context);
                   },
                 ),
@@ -297,17 +361,23 @@ class _ParticipantPageState extends State<ParticipantPage> {
     // ----------------------------------------------------
     if (status == 'rejected') {
       return Card(
-        elevation: 5,
         child: Padding(
-          padding: EdgeInsets.all(24.w),
+          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 30.h),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cancel_outlined, size: 64.sp, color: Colors.red.shade400),
+              const Icon(Icons.cancel_outlined, size: 72, color: AppColors.error),
               Gap(16.h),
-              Text(type == 'invite' ? "Invitation Declined" : "Request Denied", style: TextStyle(fontSize: 22.sp, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+              Text(type == 'invite' ? "Invitation Declined" : "Request Denied", style: Theme
+                  .of(context)
+                  .textTheme
+                  .headlineMedium
+                  ?.copyWith(color: AppColors.error)),
               Gap(8.h),
-              Text("You are not attending this event.", textAlign: TextAlign.center, style: TextStyle(fontSize: 14.sp, color: Colors.grey.shade700)),
+              Text("You are not attending this event.", textAlign: TextAlign.center, style: Theme
+                  .of(context)
+                  .textTheme
+                  .bodyMedium),
             ],
           ),
         ),

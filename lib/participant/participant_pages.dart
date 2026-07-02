@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -19,10 +21,13 @@ class ParticipantPages extends StatefulWidget {
   State<ParticipantPages> createState() => _ParticipantPagesState();
 }
 
-class _ParticipantPagesState extends State<ParticipantPages> {
+class _ParticipantPagesState extends State<ParticipantPages>
+    with WidgetsBindingObserver {
   int currentIndex = 0;
   final service = EventService();
   final authService = AuthService();
+  StreamSubscription? _banListener;
+
   final TextEditingController searchController = TextEditingController();
 
   String searchText = "";
@@ -45,12 +50,54 @@ class _ParticipantPagesState extends State<ParticipantPages> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    // Listen for Real-Time Account Suspensions
+    _banListener = FirebaseFirestore.instance
+        .collection('users')
+        .doc(authService.currentUserId)
+        .snapshots()
+        .listen((doc) {
+          if (doc.exists && doc.data()?['disabled'] == true) {
+            _forceLogout();
+          }
+        });
   }
 
   @override
   void dispose() {
     searchController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _banListener?.cancel();
     super.dispose();
+  }
+
+  Future<void> _forceLogout() async {
+    await authService.logout();
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (route) => false,
+      );
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _verifyAccountStatus();
+    }
+  }
+
+  Future<void> _verifyAccountStatus() async {
+    try {
+      await FirebaseAuth.instance.currentUser?.reload();
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-disabled' || e.code == 'user-not-found') {
+        _forceLogout();
+      }
+    }
   }
 
   void showLocation() {
@@ -107,7 +154,10 @@ class _ParticipantPagesState extends State<ParticipantPages> {
           Icon(Icons.qr_code, color: Colors.white),
           Icon(Icons.person, color: Colors.white),
         ],
-        onTap: (index) => setState(() => currentIndex = index),
+        onTap: (index) {
+          setState(() => currentIndex = index);
+          _verifyAccountStatus();
+        },
       ),
     );
   }
@@ -400,6 +450,10 @@ class _ParticipantPagesState extends State<ParticipantPages> {
                             return Card(
                               margin: EdgeInsets.only(bottom: 12.h),
                               child: ListTile(
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16.w,
+                                  vertical: 8.h,
+                                ),
                                 leading: CircleAvatar(
                                   backgroundColor: AppColors.secondary
                                       .withAlpha(30),
@@ -414,7 +468,34 @@ class _ParticipantPagesState extends State<ParticipantPages> {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                subtitle: Text(data['venue'] ?? ''),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Gap(4.h),
+                                    Text(
+                                      [data['venue'] ?? '']
+                                          .where(
+                                            (element) => element.isNotEmpty,
+                                          )
+                                          .join(' • '),
+                                    ),
+                                    if (data['description'] != null &&
+                                        data['description']
+                                            .toString()
+                                            .isNotEmpty) ...[
+                                      Gap(4.h),
+                                      Text(
+                                        data['description'],
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 12.sp,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                                 trailing: const Text(
                                   "Apply",
                                   style: TextStyle(
@@ -599,10 +680,12 @@ class _ParticipantPagesState extends State<ParticipantPages> {
 
           IconData icon = Icons.event;
           if (item['historyLabel'] != null &&
-              item['historyLabel'].toString().contains('Attended'))
+              item['historyLabel'].toString().contains('Attended')) {
             icon = Icons.check_circle;
-          if (item['historyLabel'] == 'Missed (Did Not Attend)')
+          }
+          if (item['historyLabel'] == 'Missed (Did Not Attend)') {
             icon = Icons.event_busy;
+          }
           if (item['status'] == 'invited') icon = Icons.mail;
 
           return Card(
@@ -854,15 +937,7 @@ class _ParticipantPagesState extends State<ParticipantPages> {
                 bottom: 24,
                 right: 24,
                 child: FloatingActionButton.extended(
-                  onPressed: () async {
-                    await authService.logout();
-                    if (!mounted) return;
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginPage()),
-                      (route) => false,
-                    );
-                  },
+                  onPressed: _forceLogout,
                   backgroundColor: AppColors.surface,
                   label: const Text(
                     "Log out",

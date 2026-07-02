@@ -108,12 +108,13 @@ class ParticipantService {
       final idToken = await user.getIdToken();
       if (idToken == null) return;
 
-      final String baseUrl = dotenv.env['API_BASE_URL'] ?? 'https://smart-event-api.vercel.app';
-      final String cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final String baseUrl =
+          dotenv.env['API_BASE_URL'] ?? 'https://smart-event-api.vercel.app';
+      final String cleanBaseUrl = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
 
-      final url = Uri.parse(
-        '$cleanBaseUrl/api/send-notification',
-      );
+      final url = Uri.parse('$cleanBaseUrl/api/send-notification');
 
       final response = await http.post(
         url,
@@ -146,6 +147,8 @@ class ParticipantService {
     required String email,
     required String eventId,
     required String organizerId,
+    String? phone,
+    String? location,
   }) async {
     final fcmToken = await FirebaseMessaging.instance.getToken();
 
@@ -178,6 +181,8 @@ class ParticipantService {
         'type': 'request',
         'name': name,
         'email': email,
+        if (phone != null) 'phone': phone,
+        if (location != null) 'location': location,
         'eventTitle': eventData['title'] ?? 'Unknown Event',
         'eventDate': eventData['date'],
       });
@@ -189,6 +194,8 @@ class ParticipantService {
           'userId': userId,
           'name': name,
           'email': email,
+          if (phone != null) 'phone': phone,
+          if (location != null) 'location': location,
           'fcmToken': fcmToken,
           'eventId': eventId,
           'guestId': newGuestId,
@@ -218,6 +225,8 @@ class ParticipantService {
       'userId': userId,
       'name': name,
       'email': email,
+      if (phone != null) 'phone': phone,
+      if (location != null) 'location': location,
       'fcmToken': fcmToken,
       'eventId': eventId,
       'guestId': guestId,
@@ -387,28 +396,61 @@ class ParticipantService {
     if (status != 'accepted' && status != 'rejected') {
       throw Exception("Invalid response status");
     }
-    
+
     final docRef = _db.collection('participants').doc(docId);
     final docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      throw Exception("Participant document not found");
+    }
+
+    final data = docSnap.data()!;
+
+    // ─── CAPACITY QUEUE LOGIC FOR INVITATIONS ───
+    if (status == 'accepted') {
+      final eventDoc = await _db
+          .collection('events')
+          .doc(data['eventId'])
+          .get();
+      if (eventDoc.exists) {
+        final eventData = eventDoc.data()!;
+        final maxCapacity = eventData['maxCapacity'];
+
+        if (maxCapacity != null && maxCapacity is int && maxCapacity > 0) {
+          final countQuery = await _db
+              .collection('participants')
+              .where('eventId', isEqualTo: data['eventId'])
+              .where('status', isEqualTo: 'accepted')
+              .count()
+              .get();
+
+          if (countQuery.count! >= maxCapacity) {
+            throw Exception(
+              "Capacity Full! Event has reached its maximum limit of $maxCapacity attendees.",
+            );
+          }
+        }
+      }
+    }
 
     await docRef.update({
       'status': status,
       'respondedAt': FieldValue.serverTimestamp(),
     });
 
-    if (docSnap.exists) {
-      final data = docSnap.data()!;
-      // Notify the organizer about the invite response specifically to the organizer dashboard
-      await _db.collection('notifications').add({
-        'title': status == 'accepted' ? 'Invitation Accepted' : 'Invitation Declined',
-        'body': '${data['name']} has $status your invitation to ${data['eventTitle']}.',
-        'time': FieldValue.serverTimestamp(),
-        'isRead': false,
-        'eventId': data['eventId'],
-        'targetUserId': data['organizerId'], 
-        'targetRole': 'organizer', // Prevent bleeding into participant tab
-      });
-    }
+    // Notify the organizer about the invite response specifically to the organizer dashboard
+    await _db.collection('notifications').add({
+      'title': status == 'accepted'
+          ? 'Invitation Accepted'
+          : 'Invitation Declined',
+      'body':
+          '${data['name']} has $status your invitation to ${data['eventTitle']}.',
+      'time': FieldValue.serverTimestamp(),
+      'isRead': false,
+      'eventId': data['eventId'],
+      'targetUserId': data['organizerId'],
+      'targetRole': 'organizer', // Prevent bleeding into participant tab
+    });
   }
 
   // MARK ATTENDANCE USING ONLY guestId (QR USE)
@@ -559,12 +601,41 @@ class ParticipantService {
     if (status != 'accepted' && status != 'rejected') {
       throw Exception("Invalid status");
     }
+
     final docRef = _db.collection('participants').doc(docId);
     final doc = await docRef.get();
 
     if (!doc.exists) {
       throw Exception("Participant document not found");
     }
+
+    final data = doc.data()!;
+
+    // ─── CAPACITY QUEUE LOGIC FOR JOIN REQUESTS ───
+    if (status == 'accepted') {
+      final eventDoc = await _db
+          .collection('events')
+          .doc(data['eventId'])
+          .get();
+      if (eventDoc.exists) {
+        final eventData = eventDoc.data()!;
+        final maxCapacity = eventData['maxCapacity'];
+
+        if (maxCapacity != null && maxCapacity is int && maxCapacity > 0) {
+          final countQuery = await _db
+              .collection('participants')
+              .where('eventId', isEqualTo: data['eventId'])
+              .where('status', isEqualTo: 'accepted')
+              .count()
+              .get();
+
+          if (countQuery.count! >= maxCapacity) {
+            throw Exception("Capacity Full! User will remain in the Queue.");
+          }
+        }
+      }
+    }
+
     await docRef.update({
       'status': status,
       'respondedAt': FieldValue.serverTimestamp(),

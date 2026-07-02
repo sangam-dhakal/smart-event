@@ -275,9 +275,15 @@ class PendingParticipantsPage extends StatelessWidget {
       );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: ${e.toString()}"), backgroundColor: AppColors.error));
+      
+      final msg = e.toString().replaceAll("Exception: ", "");
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg, style: const TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: msg.contains("Capacity Full") ? AppColors.warning : AppColors.error,
+        )
+      );
     }
   }
 }
