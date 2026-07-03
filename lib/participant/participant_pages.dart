@@ -842,114 +842,154 @@ class _ParticipantPagesState extends State<ParticipantPages>
         builder: (context, snapshot) {
           if (!snapshot.hasData)
             return const Center(child: CircularProgressIndicator());
+
           final data = snapshot.data!.data();
           if (data == null) return const Center(child: Text("No user found"));
 
           final name = data['name'] ?? "User";
           final email = data['email'] ?? "No Email";
 
-          return Stack(
-            children: [
-              SingleChildScrollView(
-                padding: EdgeInsets.all(24.w),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Profile",
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    SizedBox(height: 30.h),
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: AppColors.secondary,
-                          radius: 36.r,
-                          child: Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : "U",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              fontSize: 28.sp,
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text("Profile"),
+              actions: [
+                PopupMenuButton<String>(
+                  onSelected: (value) async {
+                    if (value == 'switch') {
+                      await FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(uid)
+                          .update({'role': 'organizer'});
+                      if (!mounted) return;
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (_) => const EventPage()),
+                        (route) => false,
+                      );
+                    } else if (value == 'password') {
+                      try {
+                        await FirebaseAuth.instance.sendPasswordResetEmail(
+                          email: email,
+                        );
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "Password reset link sent to your email!",
                             ),
+                            backgroundColor: AppColors.success,
                           ),
-                        ),
-                        const Gap(16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                name,
-                                style: TextStyle(
-                                  fontSize: 20.sp,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                email,
-                                style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text("Error: $e"),
+                            backgroundColor: AppColors.error,
                           ),
-                        ),
-                      ],
-                    ),
-                    Gap(40.h),
-
-                    // ROLE SWITCHING BUTTON
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        key: const ValueKey('participant_switch_role_btn'),
-                        onPressed: () async {
-                          await FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(uid)
-                              .update({'role': 'organizer'});
-                          if (!context.mounted) return;
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const EventPage(),
-                            ),
-                            (route) => false,
-                          );
-                        },
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        );
+                      }
+                    } else if (value == 'logout') {
+                      _forceLogout();
+                    }
+                  },
+                  itemBuilder: (BuildContext context) {
+                    return [
+                      const PopupMenuItem(
+                        value: 'switch',
+                        child: Row(
                           children: [
-                            Icon(Icons.swap_horiz),
+                            Icon(Icons.swap_horiz, color: AppColors.primary),
                             SizedBox(width: 8),
-                            Text("Switch to Organizer Dashboard"),
+                            Text("Switch to Organizer"),
                           ],
                         ),
                       ),
-                    ),
-                    Gap(80.h),
-                    // Provide clearance for the bottom floating logout button
-                  ],
+                      const PopupMenuItem(
+                        value: 'password',
+                        child: Row(
+                          children: [
+                            Icon(Icons.lock_reset, color: AppColors.primary),
+                            SizedBox(width: 8),
+                            Text("Change Password"),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'logout',
+                        child: Row(
+                          children: [
+                            Icon(Icons.logout, color: AppColors.error),
+                            SizedBox(width: 8),
+                            Text(
+                              "Logout",
+                              style: TextStyle(color: AppColors.error),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ];
+                  },
                 ),
-              ),
-              Positioned(
-                bottom: 24,
-                right: 24,
-                child: FloatingActionButton.extended(
-                  onPressed: _forceLogout,
-                  backgroundColor: AppColors.surface,
-                  label: const Text(
-                    "Log out",
-                    style: TextStyle(
-                      color: AppColors.error,
-                      fontWeight: FontWeight.bold,
+              ],
+            ),
+            body: SingleChildScrollView(
+              padding: EdgeInsets.all(24.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Gap(20.h),
+                  CircleAvatar(
+                    backgroundColor: AppColors.secondary,
+                    radius: 48.r,
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : "U",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        fontSize: 36.sp,
+                      ),
                     ),
                   ),
-                  icon: const Icon(Icons.logout, color: AppColors.error),
-                ),
+                  Gap(24.h),
+                  Text(
+                    name,
+                    style: TextStyle(
+                      fontSize: 24.sp,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Gap(8.h),
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 12.w,
+                      vertical: 4.h,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary.withAlpha(20),
+                      borderRadius: BorderRadius.circular(16.r),
+                    ),
+                    child: Text(
+                      "PARTICIPANT",
+                      style: TextStyle(
+                        color: AppColors.secondary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12.sp,
+                      ),
+                    ),
+                  ),
+                  Gap(16.h),
+                  Text(
+                    email,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           );
         },
       ),

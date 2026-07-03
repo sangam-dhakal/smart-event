@@ -39,10 +39,11 @@ class FeedbackService {
 
   // Stream all feedback for an event (Organizer view)
   Stream<QuerySnapshot<Map<String, dynamic>>> getEventFeedback(String eventId) {
+    // FIX: Removed .orderBy('timestamp', descending: true) because it triggers a missing composite index error briefly.
+    // The UI will now fetch the data and sort it locally instead!
     return _db
         .collection('feedbacks')
         .where('eventId', isEqualTo: eventId)
-        .orderBy('timestamp', descending: true)
         .snapshots();
   }
 }

@@ -141,12 +141,10 @@ class EventDetailsPage extends StatelessWidget {
   // ─────────────────────────────
 
   // Shows dialog for manual VIP guest invite
-  void _showSingleInviteDialog(
-    BuildContext context,
-    String eventId,
-    String eventTitle,
-    String organizerId,
-  ) {
+  void _showSingleInviteDialog(BuildContext context,
+      String eventId,
+      String eventTitle,
+      String organizerId,) {
     final nameController = TextEditingController();
     final emailController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -159,7 +157,8 @@ class EventDetailsPage extends StatelessWidget {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              title: const Text("Invite Single Guest", style: TextStyle(fontWeight: FontWeight.bold)),
+              title: const Text(
+                  "Invite Single Guest", style: TextStyle(fontWeight: FontWeight.bold)),
               content: Form(
                 key: formKey,
                 child: Column(
@@ -213,50 +212,71 @@ class EventDetailsPage extends StatelessWidget {
                   onPressed: isLoading
                       ? null
                       : () async {
-                          if (formKey.currentState!.validate()) {
-                            setState(() => isLoading = true);
-                            try {
-                              await ParticipantService().inviteSingleGuest(
-                                eventId: eventId,
-                                eventTitle: eventTitle,
-                                organizerId: organizerId,
-                                name: nameController.text,
-                                email: emailController.text,
-                                sendEmail: sendEmail,
-                              );
-                              if (ctx.mounted) {
-                                Navigator.pop(ctx);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      "Guest invited successfully!",
-                                    ),
-                                    backgroundColor: AppColors.success,
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              setState(() => isLoading = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    e.toString().replaceAll("Exception: ", ""),
-                                  ),
-                                  backgroundColor: AppColors.error,
+                    if (formKey.currentState!.validate()) {
+                      // Added Confirmation Dialog
+                      final confirm = await showDialog<bool>(
+                        context: ctx,
+                        builder: (_) =>
+                            AlertDialog(
+                              title: const Text("Send Invite?"),
+                              content: Text(
+                                  "Are you sure you want to invite ${nameController.text}?"),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(ctx, false),
+                                    child: const Text("Cancel")),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text("Yes, Send"),
                                 ),
-                              );
-                            }
-                          }
-                        },
+                              ],
+                            ),
+                      );
+
+                      if (confirm != true) return;
+
+                      setState(() => isLoading = true);
+                      try {
+                        await ParticipantService().inviteSingleGuest(
+                          eventId: eventId,
+                          eventTitle: eventTitle,
+                          organizerId: organizerId,
+                          name: nameController.text,
+                          email: emailController.text,
+                          sendEmail: sendEmail,
+                        );
+                        if (ctx.mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                "Guest invited successfully!",
+                              ),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setState(() => isLoading = false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              e.toString().replaceAll("Exception: ", ""),
+                            ),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                      }
+                    }
+                  },
                   child: isLoading
                       ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
                       : const Text("Send Invite"),
                 ),
               ],
@@ -292,45 +312,11 @@ class EventDetailsPage extends StatelessWidget {
         ),
         Gap(16.h),
 
-        // GROUP 1: Offline Features
+        // GROUP 1: Manage Participants
         Card(
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r), side: BorderSide(color: AppColors.border)),
-          child: ExpansionTile(
-            leading: const Icon(Icons.wifi_off, color: AppColors.secondary),
-            title: const Text("Offline Features", style: TextStyle(fontWeight: FontWeight.bold)),
-            childrenPadding: EdgeInsets.all(16.w),
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.download, size: 18),
-                      label: const Text("Download Data", style: TextStyle(fontSize: 12)),
-                      style: OutlinedButton.styleFrom(foregroundColor: AppColors.secondary, side: const BorderSide(color: AppColors.secondary)),
-                      onPressed: () => _downloadForOffline(context),
-                    ),
-                  ),
-                  Gap(8.w),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.cloud_sync, size: 18),
-                      label: const Text("Sync to Cloud", style: TextStyle(fontSize: 12)),
-                      style: OutlinedButton.styleFrom(foregroundColor: AppColors.info, side: const BorderSide(color: AppColors.info)),
-                      onPressed: () => _syncOfflineData(context),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        Gap(8.h),
-
-        // GROUP 2: Manage Participants
-        Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r), side: BorderSide(color: AppColors.border)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.r), side: BorderSide(color: AppColors.border)),
           child: ExpansionTile(
             leading: const Icon(Icons.people_alt, color: AppColors.primary),
             title: const Text("Manage Participants", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -342,7 +328,8 @@ class EventDetailsPage extends StatelessWidget {
                   icon: const Icon(Icons.people),
                   label: const Text("Manage Guests"),
                   onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => ManageGuestsPage(eventId: eventId, eventTitle: eventData['title'] ?? "")));
+                    Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                        ManageGuestsPage(eventId: eventId, eventTitle: eventData['title'] ?? "")));
                   },
                 ),
               ),
@@ -352,9 +339,12 @@ class EventDetailsPage extends StatelessWidget {
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.person_add_alt_1_outlined),
                   label: const Text("View Join Requests"),
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary.withAlpha(200)),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary.withAlpha(200)),
                   onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => PendingParticipantsPage(eventId: eventId, eventTitle: eventData['title'] ?? "")));
+                    Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                        PendingParticipantsPage(
+                            eventId: eventId, eventTitle: eventData['title'] ?? "")));
                   },
                 ),
               ),
@@ -363,10 +353,11 @@ class EventDetailsPage extends StatelessWidget {
         ),
         Gap(8.h),
 
-        // GROUP 3: Mail Invitations
+        // GROUP 2: Mail Invitations
         Card(
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r), side: BorderSide(color: AppColors.border)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.r), side: BorderSide(color: AppColors.border)),
           child: ExpansionTile(
             leading: const Icon(Icons.mail_outline, color: AppColors.warning),
             title: const Text("Mail Invitations", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -377,7 +368,9 @@ class EventDetailsPage extends StatelessWidget {
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.person_add),
                   label: const Text("Invite Single Guest (VIP)"),
-                  onPressed: () => _showSingleInviteDialog(context, eventId, eventData['title'] ?? "", eventData['organizerId'] ?? ""),
+                  onPressed: () =>
+                      _showSingleInviteDialog(context, eventId, eventData['title'] ?? "",
+                          eventData['organizerId'] ?? ""),
                 ),
               ),
               Gap(8.h),
@@ -387,7 +380,10 @@ class EventDetailsPage extends StatelessWidget {
                   icon: const Icon(Icons.upload_file),
                   label: const Text("Import Invitees (CSV)"),
                   onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => CsvImportPage(eventId: eventId, eventTitle: eventData['title'] ?? "", organizerId: eventData['organizerId'] ?? "")));
+                    Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                        CsvImportPage(eventId: eventId,
+                            eventTitle: eventData['title'] ?? "",
+                            organizerId: eventData['organizerId'] ?? "")));
                   },
                 ),
               ),
@@ -396,16 +392,18 @@ class EventDetailsPage extends StatelessWidget {
         ),
         Gap(8.h),
 
-        // GROUP 4: Event Feedback
+        // GROUP 3: Event Feedback
         Card(
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r), side: BorderSide(color: AppColors.border)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.r), side: BorderSide(color: AppColors.border)),
           child: ListTile(
             leading: const Icon(Icons.star, color: AppColors.accent),
             title: const Text("View Event Feedback", style: TextStyle(fontWeight: FontWeight.bold)),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => FeedbackListPage(eventId: eventId, eventTitle: eventData['title'] ?? "")));
+              Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                  FeedbackListPage(eventId: eventId, eventTitle: eventData['title'] ?? "")));
             },
           ),
         ),
@@ -425,6 +423,34 @@ class EventDetailsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Event Details'),
+        actions: [
+          // If Organizer, show offline tool popup menu to prevent clutter
+          FutureBuilder<String>(
+            future: authService.getRole(user.uid),
+            builder: (context, snapshot) {
+              if (snapshot.hasData && snapshot.data == 'organizer' &&
+                  eventData['organizerId'] == user.uid) {
+                return PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (val) {
+                    if (val == 'download') _downloadForOffline(context);
+                    if (val == 'sync') _syncOfflineData(context);
+                  },
+                  itemBuilder: (_) =>
+                  [
+                    const PopupMenuItem(value: 'download', child: Row(children: [Icon(Icons
+                        .download, color: AppColors.secondary), SizedBox(width: 8), Text(
+                        "Download Offline Data")
+                    ])),
+                    const PopupMenuItem(value: 'sync', child: Row(children: [Icon(Icons.cloud_sync,
+                        color: AppColors.info), SizedBox(width: 8), Text("Sync Offline Scans")])),
+                  ],
+                );
+              }
+              return const SizedBox();
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.all(16.w),
@@ -446,12 +472,20 @@ class EventDetailsPage extends StatelessWidget {
                         color: AppColors.primary,
                       ),
                     ),
+                    if (eventData['description'] != null && eventData['description']
+                        .toString()
+                        .isNotEmpty) ...[
+                      Gap(8.h),
+                      Text(eventData['description'],
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13.sp)),
+                    ],
                     const Gap(16),
                     Row(
                       children: [
                         const Icon(Icons.person, color: AppColors.primary),
                         SizedBox(width: 8.w),
-                        Text(eventData['organizer'] ?? '', style: const TextStyle(fontWeight: FontWeight.w500)),
+                        Text(eventData['organizer'] ?? '',
+                            style: const TextStyle(fontWeight: FontWeight.w500)),
                       ],
                     ),
                     const Gap(8),
@@ -459,7 +493,8 @@ class EventDetailsPage extends StatelessWidget {
                       children: [
                         const Icon(Icons.business, color: AppColors.primary),
                         SizedBox(width: 8.w),
-                        Text(eventData['organization'] ?? '', style: const TextStyle(fontWeight: FontWeight.w500)),
+                        Text(eventData['organization'] ?? '',
+                            style: const TextStyle(fontWeight: FontWeight.w500)),
                       ],
                     ),
                     const Gap(8),
@@ -467,11 +502,13 @@ class EventDetailsPage extends StatelessWidget {
                       children: [
                         const Icon(Icons.location_on, color: AppColors.primary),
                         SizedBox(width: 8.w),
-                        Expanded(child: Text(eventData['venue'] ?? '', style: const TextStyle(fontWeight: FontWeight.w500))),
+                        Expanded(child: Text(eventData['venue'] ?? '', style: const TextStyle(
+                            fontWeight: FontWeight.w500))),
                       ],
                     ),
                     // Hide View on Map if this user is the organizer of this event
-                    if (eventData['lat'] != null && eventData['lng'] != null && eventData['organizerId'] != user.uid) ...[
+                    if (eventData['lat'] != null && eventData['lng'] != null &&
+                        eventData['organizerId'] != user.uid) ...[
                       const Gap(12),
                       SizedBox(
                         width: double.infinity,
@@ -512,7 +549,8 @@ class EventDetailsPage extends StatelessWidget {
                                 eventDate != null
                                     ? "${eventDate!.day}-${eventDate!.month}-${eventDate!.year}"
                                     : '',
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, color: AppColors.primary),
                               ),
                             ],
                           ),
@@ -522,7 +560,8 @@ class EventDetailsPage extends StatelessWidget {
                               const Gap(8),
                               Text(
                                 time != null ? formatTimeOfDay(time) : '',
-                                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, color: AppColors.primary),
                               ),
                             ],
                           ),
@@ -610,9 +649,9 @@ class EventDetailsPage extends StatelessWidget {
                                       onPressed: () async {
                                         await ParticipantService()
                                             .respondToInvite(
-                                              doc.id,
-                                              'rejected',
-                                            );
+                                          doc.id,
+                                          'rejected',
+                                        );
                                       },
                                       child: const Text("Decline"),
                                     ),
@@ -624,11 +663,17 @@ class EventDetailsPage extends StatelessWidget {
                                         backgroundColor: AppColors.success,
                                       ),
                                       onPressed: () async {
-                                        await ParticipantService()
-                                            .respondToInvite(
-                                              doc.id,
-                                              'accepted',
-                                            );
+                                        try {
+                                          await ParticipantService().respondToInvite(
+                                              doc.id, 'accepted');
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                                content: Text(
+                                                    e.toString().replaceAll("Exception: ", "")),
+                                                backgroundColor: AppColors.warning));
+                                          }
+                                        }
                                       },
                                       child: const Text("Accept Invitation"),
                                     ),
@@ -647,7 +692,8 @@ class EventDetailsPage extends StatelessWidget {
                               ),
                               onPressed: null,
                               icon: const Icon(Icons.hourglass_top, color: Colors.white),
-                              label: const Text("Request Pending Approval", style: TextStyle(color: Colors.white)),
+                              label: const Text("Request Pending Approval",
+                                  style: TextStyle(color: Colors.white)),
                             ),
                           );
                         } else if (status == 'accepted') {
@@ -663,10 +709,11 @@ class EventDetailsPage extends StatelessWidget {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (_) => QRPage(
-                                          guestId: pData['guestId'],
-                                          eventId: eventId,
-                                        ),
+                                        builder: (_) =>
+                                            QRPage(
+                                              guestId: pData['guestId'],
+                                              eventId: eventId,
+                                            ),
                                       ),
                                     );
                                   },
@@ -692,11 +739,12 @@ class EventDetailsPage extends StatelessWidget {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (_) => FeedbackFormPage(
-                                            eventId: eventId,
-                                            participantName:
+                                          builder: (_) =>
+                                              FeedbackFormPage(
+                                                eventId: eventId,
+                                                participantName:
                                                 pData['name'] ?? 'Guest',
-                                          ),
+                                              ),
                                         ),
                                       );
                                     },
@@ -762,7 +810,29 @@ class EventDetailsPage extends StatelessWidget {
                         );
                       }
 
-                      // Default: Not applied, not invited -> Show Apply button
+                      // Check if Registration Deadline has passed
+                      DateTime? regDeadline;
+                      if (eventData['registrationDeadline'] != null) {
+                        regDeadline = (eventData['registrationDeadline'] as Timestamp).toDate();
+                      }
+                      bool isRegClosed = regDeadline != null && DateTime.now().isAfter(regDeadline);
+
+                      if (isRegClosed) {
+                        return SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              disabledBackgroundColor: AppColors.border,
+                              disabledForegroundColor: AppColors.textSecondary,
+                            ),
+                            onPressed: null,
+                            icon: const Icon(Icons.timer_off),
+                            label: const Text("REGISTRATION CLOSED"),
+                          ),
+                        );
+                      }
+
+                      // Default: Not applied, not invited, and registration is open -> Show Apply button
                       return SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(
@@ -773,10 +843,11 @@ class EventDetailsPage extends StatelessWidget {
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => ParticipantPage(
-                                  eventId: eventId,
-                                  organizerId: eventData['organizerId'] ?? '',
-                                ),
+                                builder: (_) =>
+                                    ParticipantPage(
+                                      eventId: eventId,
+                                      organizerId: eventData['organizerId'] ?? '',
+                                    ),
                               ),
                             );
                           },

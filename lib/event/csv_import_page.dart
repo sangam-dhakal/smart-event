@@ -29,7 +29,7 @@ class _CsvImportPageState extends State<CsvImportPage> {
 
   List<List<dynamic>> _csvData = [];
   List<String> _headers = [];
-  
+
   String? _nameHeader;
   String? _emailHeader;
   String? _departmentHeader;
@@ -39,9 +39,9 @@ class _CsvImportPageState extends State<CsvImportPage> {
 
   bool _isLoading = false;
   bool _isFetchingExisting = true;
-  
+
   // Safety defaults
-  bool _sendEmail = false; 
+  bool _sendEmail = false;
 
   // Search and Select functionalities
   String _searchQuery = '';
@@ -108,10 +108,13 @@ class _CsvImportPageState extends State<CsvImportPage> {
           currentField.clear();
         } else if (char == '\n' || char == '\r') {
           if (char == '\r' && i + 1 < input.length && input[i + 1] == '\n') {
-            i++; 
+            i++;
           }
           currentRow.add(currentField.toString().trim());
-          if (currentRow.any((field) => field.toString().isNotEmpty)) {
+          if (currentRow.any((field) =>
+          field
+              .toString()
+              .isNotEmpty)) {
             rows.add(currentRow);
           }
           currentRow = [];
@@ -123,7 +126,10 @@ class _CsvImportPageState extends State<CsvImportPage> {
     }
     if (currentField.isNotEmpty || currentRow.isNotEmpty) {
       currentRow.add(currentField.toString().trim());
-      if (currentRow.any((field) => field.toString().isNotEmpty)) {
+      if (currentRow.any((field) =>
+      field
+          .toString()
+          .isNotEmpty)) {
         rows.add(currentRow);
       }
     }
@@ -140,7 +146,7 @@ class _CsvImportPageState extends State<CsvImportPage> {
       if (result != null && result.files.single.path != null) {
         final path = result.files.single.path!;
         final input = File(path).readAsStringSync();
-        
+
         final rows = _parseCsv(input);
 
         if (rows.length > 1) {
@@ -187,7 +193,9 @@ class _CsvImportPageState extends State<CsvImportPage> {
       if (row.length > nameIndex && row.length > emailIndex) {
         String name = row[nameIndex].toString().trim();
         String email = row[emailIndex].toString().trim();
-        String department = (deptIndex != -1 && row.length > deptIndex) ? row[deptIndex].toString().trim() : '';
+        String department = (deptIndex != -1 && row.length > deptIndex) ? row[deptIndex]
+            .toString()
+            .trim() : '';
 
         bool isValid = _isValidEmail(email);
         bool isDuplicate = _existingEmails.contains(email.toLowerCase());
@@ -213,7 +221,8 @@ class _CsvImportPageState extends State<CsvImportPage> {
       final name = g['name'].toString().toLowerCase();
       final email = g['email'].toString().toLowerCase();
       final dept = g['department'].toString().toLowerCase();
-      return name.contains(_searchQuery) || email.contains(_searchQuery) || dept.contains(_searchQuery);
+      return name.contains(_searchQuery) || email.contains(_searchQuery) ||
+          dept.contains(_searchQuery);
     }).toList();
   }
 
@@ -249,10 +258,32 @@ class _CsvImportPageState extends State<CsvImportPage> {
       return;
     }
 
+    // Confirmation dialog before mass processing
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) =>
+          AlertDialog(
+            title: const Text("Import Selected Guests?"),
+            content: Text(
+                "Are you sure you want to invite ${selectedGuests.length} guests to this event?"),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text("Confirm"),
+              ),
+            ],
+          ),
+    );
+
+    if (confirm != true) return;
+
     setState(() => _isLoading = true);
 
     try {
-      final guestsToImport = selectedGuests.map((g) => {
+      final guestsToImport = selectedGuests.map((g) =>
+      {
         'name': g['name'] as String,
         'email': g['email'] as String,
         'department': g['department'] as String,
@@ -269,7 +300,8 @@ class _CsvImportPageState extends State<CsvImportPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Successfully invited ${guestsToImport.length} guests!", style: const TextStyle(fontWeight: FontWeight.bold)),
+          content: Text("Successfully invited ${guestsToImport.length} guests!",
+              style: const TextStyle(fontWeight: FontWeight.bold)),
           backgroundColor: AppColors.success,
         ),
       );
@@ -297,209 +329,242 @@ class _CsvImportPageState extends State<CsvImportPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: EdgeInsets.all(16.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.w),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("1. Select CSV File", style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)),
-                          Gap(10.h),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: _pickFile,
-                              icon: const Icon(Icons.upload_file),
-                              label: const Text("Upload CSV"),
-                            ),
-                          ),
-                          if (_headers.isNotEmpty) ...[
-                            Gap(10.h),
-                            Text("File loaded with ${_csvData.length - 1} rows.", style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
-                          ]
-                        ],
+        padding: EdgeInsets.all(16.w),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Card(
+              child: Padding(
+                padding: EdgeInsets.all(16.w),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("1. Select CSV File",
+                        style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)),
+                    Gap(10.h),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _pickFile,
+                        icon: const Icon(Icons.upload_file),
+                        label: const Text("Upload CSV"),
                       ),
                     ),
-                  ),
-                  Gap(16.h),
-
-                  if (_headers.isNotEmpty)
-                    Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(16.w),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("2. Map CSV Columns", style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)),
-                            Gap(16.h),
-                            DropdownButtonFormField<String>(
-                              decoration: const InputDecoration(labelText: "Name Column *"),
-                              value: _nameHeader,
-                              items: _headers.map((h) => DropdownMenuItem(value: h, child: Text(h))).toList(),
-                              onChanged: (val) {
-                                setState(() {
-                                  _nameHeader = val;
-                                  if (_nameHeader == _emailHeader) _emailHeader = null; 
-                                });
-                                _processPreview();
-                              },
-                            ),
-                            Gap(16.h),
-                            DropdownButtonFormField<String>(
-                              decoration: const InputDecoration(labelText: "Email Column *"),
-                              value: _emailHeader,
-                              items: _headers.map((h) => DropdownMenuItem(value: h, child: Text(h))).toList(),
-                              onChanged: (val) {
-                                setState(() {
-                                  _emailHeader = val;
-                                  if (_emailHeader == _nameHeader) _nameHeader = null;
-                                });
-                                _processPreview();
-                              },
-                            ),
-                            Gap(16.h),
-                            DropdownButtonFormField<String>(
-                              decoration: const InputDecoration(labelText: "Department Column (Optional)"),
-                              value: _departmentHeader,
-                              items: [
-                                const DropdownMenuItem<String>(value: null, child: Text("None")),
-                                ..._headers.map((h) => DropdownMenuItem(value: h, child: Text(h))).toList()
-                              ],
-                              onChanged: (val) {
-                                setState(() {
-                                  _departmentHeader = val;
-                                });
-                                _processPreview();
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  Gap(16.h),
-
-                  if (_parsedGuests.isNotEmpty && _nameHeader != null && _emailHeader != null)
-                    Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(16.w),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("3. Review & Invite", style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)),
-                            Gap(16.h),
-                            
-                            // Email Settings Checkbox
-                            Container(
-                              decoration: BoxDecoration(
-                                color: AppColors.info.withAlpha(20),
-                                borderRadius: BorderRadius.circular(8.r),
-                                border: Border.all(color: AppColors.info.withAlpha(80)),
-                              ),
-                              child: CheckboxListTile(
-                                title: const Text("Send Email Invitations", style: TextStyle(fontWeight: FontWeight.bold)),
-                                subtitle: const Text("Fires EmailJS API for the selected guests below."),
-                                value: _sendEmail,
-                                onChanged: (val) => setState(() => _sendEmail = val ?? false),
-                                activeColor: AppColors.primary,
-                                contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 4.h),
-                              ),
-                            ),
-                            Gap(16.h),
-
-                            // Search Bar
-                            TextField(
-                              controller: _searchController,
-                              onChanged: (val) => setState(() => _searchQuery = val.toLowerCase().trim()),
-                              decoration: const InputDecoration(
-                                hintText: "Search name, email, dept...",
-                                prefixIcon: Icon(Icons.search),
-                              ),
-                            ),
-                            Gap(16.h),
-
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  "Selected: ${_parsedGuests.where((g) => g['selected'] == true).length}",
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
-                                ),
-                                Row(
-                                  children: [
-                                    TextButton(
-                                      onPressed: _selectAllFiltered, 
-                                      child: const Text("Select All")
-                                    ),
-                                    TextButton(
-                                      onPressed: _deselectAllFiltered, 
-                                      style: TextButton.styleFrom(foregroundColor: AppColors.error),
-                                      child: const Text("Clear")
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            Gap(8.h),
-
-                            // The Guest List
-                            Container(
-                              height: 350.h,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: AppColors.border),
-                                borderRadius: BorderRadius.circular(12.r),
-                              ),
-                              child: _filteredGuests.isEmpty
-                                  ? const Center(child: Text("No matching guests", style: TextStyle(color: AppColors.textSecondary)))
-                                  : ListView.separated(
-                                      itemCount: _filteredGuests.length,
-                                      separatorBuilder: (_, __) => const Divider(height: 1),
-                                      itemBuilder: (context, index) {
-                                        final guest = _filteredGuests[index];
-                                        final isDuplicate = guest['isDuplicate'];
-                                        final isValid = guest['isValid'];
-
-                                        Widget secondaryIcon;
-                                        if (isDuplicate) secondaryIcon = const Icon(Icons.info, color: AppColors.warning, size: 20);
-                                        else if (isValid) secondaryIcon = const Icon(Icons.check_circle, color: AppColors.success, size: 20);
-                                        else secondaryIcon = const Icon(Icons.error, color: AppColors.error, size: 20);
-
-                                        return CheckboxListTile(
-                                          value: guest['selected'],
-                                          onChanged: (isValid && !isDuplicate) ? (val) {
-                                            setState(() => guest['selected'] = val ?? false);
-                                          } : null,
-                                          title: Text(guest['name'], style: TextStyle(color: isDuplicate ? AppColors.textSecondary : AppColors.textPrimary, fontWeight: FontWeight.bold)),
-                                          subtitle: Text(
-                                            isDuplicate ? "Already in system" : "${guest['email']} ${guest['department'].toString().isNotEmpty ? '• ${guest['department']}' : ''}", 
-                                            style: TextStyle(color: isDuplicate ? AppColors.warning : (isValid ? AppColors.textSecondary : AppColors.error)),
-                                          ),
-                                          secondary: secondaryIcon,
-                                          controlAffinity: ListTileControlAffinity.leading,
-                                          activeColor: AppColors.primary,
-                                        );
-                                      },
-                                    ),
-                            ),
-                            Gap(24.h),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: _parsedGuests.any((g) => g['selected'] == true) ? _importData : null,
-                                icon: const Icon(Icons.send),
-                                label: const Text("Confirm & Invite Selected"),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
+                    if (_headers.isNotEmpty) ...[
+                      Gap(10.h),
+                      Text("File loaded with ${_csvData.length - 1} rows.",
+                          style: const TextStyle(color: AppColors.success, fontWeight: FontWeight
+                              .bold)),
+                    ]
+                  ],
+                ),
               ),
             ),
+            Gap(16.h),
+
+            if (_headers.isNotEmpty)
+              Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16.w),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("2. Map CSV Columns",
+                          style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)),
+                      Gap(16.h),
+                      DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: "Name Column *"),
+                        value: _nameHeader,
+                        items: _headers
+                            .map((h) => DropdownMenuItem(value: h, child: Text(h)))
+                            .toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            _nameHeader = val;
+                            if (_nameHeader == _emailHeader) _emailHeader = null;
+                          });
+                          _processPreview();
+                        },
+                      ),
+                      Gap(16.h),
+                      DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: "Email Column *"),
+                        value: _emailHeader,
+                        items: _headers
+                            .map((h) => DropdownMenuItem(value: h, child: Text(h)))
+                            .toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            _emailHeader = val;
+                            if (_emailHeader == _nameHeader) _nameHeader = null;
+                          });
+                          _processPreview();
+                        },
+                      ),
+                      Gap(16.h),
+                      DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(
+                            labelText: "Department Column (Optional)"),
+                        value: _departmentHeader,
+                        items: [
+                          const DropdownMenuItem<String>(value: null, child: Text("None")),
+                          ..._headers
+                              .map((h) => DropdownMenuItem(value: h, child: Text(h)))
+                              .toList()
+                        ],
+                        onChanged: (val) {
+                          setState(() {
+                            _departmentHeader = val;
+                          });
+                          _processPreview();
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            Gap(16.h),
+
+            if (_parsedGuests.isNotEmpty && _nameHeader != null && _emailHeader != null)
+              Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16.w),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("3. Review & Invite",
+                          style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.bold)),
+                      Gap(16.h),
+
+                      // Email Settings Checkbox
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withAlpha(20),
+                          borderRadius: BorderRadius.circular(8.r),
+                          border: Border.all(color: AppColors.info.withAlpha(80)),
+                        ),
+                        child: CheckboxListTile(
+                          title: const Text("Send Email Invitations", style: TextStyle(
+                              fontWeight: FontWeight.bold)),
+                          subtitle: const Text("Fires EmailJS API for the selected guests below."),
+                          value: _sendEmail,
+                          onChanged: (val) => setState(() => _sendEmail = val ?? false),
+                          activeColor: AppColors.primary,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 4.h),
+                        ),
+                      ),
+                      Gap(16.h),
+
+                      // Search Bar
+                      TextField(
+                        controller: _searchController,
+                        onChanged: (val) => setState(() => _searchQuery = val.toLowerCase().trim()),
+                        decoration: const InputDecoration(
+                          hintText: "Search name, email, dept...",
+                          prefixIcon: Icon(Icons.search),
+                        ),
+                      ),
+                      Gap(16.h),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Selected: ${_parsedGuests
+                                .where((g) => g['selected'] == true)
+                                .length}",
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, color: AppColors.primary),
+                          ),
+                          Row(
+                            children: [
+                              TextButton(
+                                  onPressed: _selectAllFiltered,
+                                  child: const Text("Select All")
+                              ),
+                              TextButton(
+                                  onPressed: _deselectAllFiltered,
+                                  style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                                  child: const Text("Clear")
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Gap(8.h),
+
+                      // The Guest List
+                      Container(
+                        height: 350.h,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.border),
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                        child: _filteredGuests.isEmpty
+                            ? const Center(child: Text("No matching guests",
+                            style: TextStyle(color: AppColors.textSecondary)))
+                            : ListView.separated(
+                          itemCount: _filteredGuests.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final guest = _filteredGuests[index];
+                            final isDuplicate = guest['isDuplicate'];
+                            final isValid = guest['isValid'];
+
+                            Widget secondaryIcon;
+                            if (isDuplicate)
+                              secondaryIcon =
+                              const Icon(Icons.info, color: AppColors.warning, size: 20);
+                            else if (isValid)
+                              secondaryIcon =
+                              const Icon(Icons.check_circle, color: AppColors.success, size: 20);
+                            else
+                              secondaryIcon =
+                              const Icon(Icons.error, color: AppColors.error, size: 20);
+
+                            return CheckboxListTile(
+                              value: guest['selected'],
+                              onChanged: (isValid && !isDuplicate) ? (val) {
+                                setState(() => guest['selected'] = val ?? false);
+                              } : null,
+                              title: Text(guest['name'], style: TextStyle(
+                                  color: isDuplicate ? AppColors.textSecondary : AppColors
+                                      .textPrimary, fontWeight: FontWeight.bold)),
+                              subtitle: Text(
+                                isDuplicate
+                                    ? "Already in system"
+                                    : "${guest['email']} ${guest['department']
+                                    .toString()
+                                    .isNotEmpty ? '• ${guest['department']}' : ''}",
+                                style: TextStyle(
+                                    color: isDuplicate ? AppColors.warning : (isValid ? AppColors
+                                        .textSecondary : AppColors.error)),
+                              ),
+                              secondary: secondaryIcon,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              activeColor: AppColors.primary,
+                            );
+                          },
+                        ),
+                      ),
+                      Gap(24.h),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _parsedGuests.any((g) => g['selected'] == true)
+                              ? _importData
+                              : null,
+                          icon: const Icon(Icons.send),
+                          label: const Text("Confirm & Invite Selected"),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
