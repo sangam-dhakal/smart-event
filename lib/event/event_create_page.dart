@@ -249,7 +249,7 @@ class _EventCreatePageState extends State<EventCreatePage> {
   Widget buildTextField(TextEditingController controller, String label, IconData icon, {int maxLines = 1, TextInputType type = TextInputType.text}) {
     return TextFormField(
       controller: controller,
-      textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
+      textInputAction: maxLines > 3 ? TextInputAction.newline : TextInputAction.next,
       maxLines: maxLines,
       keyboardType: type,
       decoration: InputDecoration(
