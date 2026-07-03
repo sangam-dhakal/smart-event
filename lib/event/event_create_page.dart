@@ -25,13 +25,16 @@ class _EventCreatePageState extends State<EventCreatePage> {
   final titleController = TextEditingController();
   final organizerController = TextEditingController();
   final organizationController = TextEditingController();
-  final departmentController = TextEditingController(); // NEW
+  final departmentController = TextEditingController();
   final venueController = TextEditingController();
-  final descriptionController = TextEditingController(); // NEW
-  final capacityController = TextEditingController(); // NEW
+  final descriptionController = TextEditingController();
+  final capacityController = TextEditingController();
 
   DateTime? selectedDate;
   TimeOfDay? selectedTime;
+
+  DateTime? regSelectedDate;
+  TimeOfDay? regSelectedTime;
 
   String? editingEventId;
 
@@ -46,7 +49,6 @@ class _EventCreatePageState extends State<EventCreatePage> {
     if (widget.eventData != null && widget.docId != null) {
       fillForm(widget.eventData!, widget.docId!);
     } else {
-      // It's a new event, fetch and pre-fill organizer profile data
       _prefillFromProfile();
     }
   }
@@ -63,7 +65,7 @@ class _EventCreatePageState extends State<EventCreatePage> {
           organizerController.text = data['name'] ?? '';
           organizationController.text = data['orgName'] ?? '';
           departmentController.text = data['department'] ?? '';
-          venueController.text = data['location'] ?? ''; 
+          venueController.text = data['location'] ?? '';
         });
       }
     } catch (e) {
@@ -83,18 +85,19 @@ class _EventCreatePageState extends State<EventCreatePage> {
     try {
       final uri = Uri.parse(
         'https://nominatim.openstreetmap.org/search'
-        '?q=${Uri.encodeComponent(query)}'
-        '&format=json&limit=5&addressdetails=1',
+            '?q=${Uri.encodeComponent(query)}'
+            '&format=json&limit=5&addressdetails=1',
       );
 
       final response = await http.get(uri, headers: {
-        'User-Agent': 'EventSmartApp/1.0', 
+        'User-Agent': 'EventSmartApp/1.0',
       });
 
       if (response.statusCode == 200) {
         final List data = jsonDecode(response.body);
         setState(() {
-          predictions = data.map<Map<String, dynamic>>((e) => {
+          predictions = data.map<Map<String, dynamic>>((e) =>
+          {
             'name': e['display_name'],
             'lat': double.parse(e['lat']),
             'lng': double.parse(e['lon']),
@@ -116,12 +119,12 @@ class _EventCreatePageState extends State<EventCreatePage> {
     return null;
   }
 
-  // Pick Date
+  // Pick Event Date
   void pickDate() async {
     final picked = await showDatePicker(
       context: context,
       initialDate: selectedDate ?? DateTime.now(),
-      firstDate: DateTime(2024),
+      firstDate: DateTime.now(),
       lastDate: DateTime(2100),
     );
 
@@ -130,7 +133,7 @@ class _EventCreatePageState extends State<EventCreatePage> {
     }
   }
 
-  // Pick Time
+  // Pick Event Time
   void pickTime() async {
     final picked = await showTimePicker(
       context: context,
@@ -139,6 +142,32 @@ class _EventCreatePageState extends State<EventCreatePage> {
 
     if (picked != null) {
       setState(() => selectedTime = picked);
+    }
+  }
+
+  // Pick Reg Date
+  void pickRegDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: regSelectedDate ?? DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+    );
+
+    if (picked != null) {
+      setState(() => regSelectedDate = picked);
+    }
+  }
+
+  // Pick Reg Time
+  void pickRegTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: regSelectedTime ?? TimeOfDay.now(),
+    );
+
+    if (picked != null) {
+      setState(() => regSelectedTime = picked);
     }
   }
 
@@ -161,7 +190,7 @@ class _EventCreatePageState extends State<EventCreatePage> {
       venueController.text = data['venue'] ?? '';
       descriptionController.text = data['description'] ?? '';
       capacityController.text = data['maxCapacity']?.toString() ?? '';
-      
+
       selectedDate = safeDate(data['date']);
       selectedLat = (data['lat'] as num?)?.toDouble();
       selectedLng = (data['lng'] as num?)?.toDouble();
@@ -176,8 +205,14 @@ class _EventCreatePageState extends State<EventCreatePage> {
             selectedTime = TimeOfDay(hour: hour, minute: minute);
           }
         } catch (e) {
-          selectedTime = null; 
+          selectedTime = null;
         }
+      }
+
+      if (data['registrationDeadline'] != null) {
+        final d = (data['registrationDeadline'] as Timestamp).toDate();
+        regSelectedDate = d;
+        regSelectedTime = TimeOfDay(hour: d.hour, minute: d.minute);
       }
     });
   }
@@ -190,9 +225,12 @@ class _EventCreatePageState extends State<EventCreatePage> {
         descriptionController.text.isEmpty ||
         capacityController.text.isEmpty ||
         selectedDate == null ||
-        selectedTime == null) {
+        selectedTime == null ||
+        regSelectedDate == null ||
+        regSelectedTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please fill all required fields"), backgroundColor: AppColors.error)
+          const SnackBar(
+              content: Text("Please fill all required fields"), backgroundColor: AppColors.error)
       );
       return;
     }
@@ -200,10 +238,19 @@ class _EventCreatePageState extends State<EventCreatePage> {
     int? capacity = int.tryParse(capacityController.text.trim());
     if (capacity == null || capacity <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Max Capacity must be a valid positive number"), backgroundColor: AppColors.error)
+          const SnackBar(content: Text("Max Capacity must be a valid positive number"),
+              backgroundColor: AppColors.error)
       );
       return;
     }
+
+    final regDeadline = DateTime(
+      regSelectedDate!.year,
+      regSelectedDate!.month,
+      regSelectedDate!.day,
+      regSelectedTime!.hour,
+      regSelectedTime!.minute,
+    );
 
     final data = {
       "title": titleController.text.trim(),
@@ -213,10 +260,14 @@ class _EventCreatePageState extends State<EventCreatePage> {
       "description": descriptionController.text.trim(),
       "maxCapacity": capacity,
       "venue": venueController.text.trim(),
-      "lat": selectedLat, 
+      "lat": selectedLat,
       "lng": selectedLng,
       "date": Timestamp.fromDate(selectedDate!),
-      "time": "${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}",
+      "time": "${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!
+          .minute
+          .toString()
+          .padLeft(2, '0')}",
+      "registrationDeadline": Timestamp.fromDate(regDeadline),
       "organizerId": FirebaseAuth.instance.currentUser!.uid,
     };
 
@@ -228,10 +279,11 @@ class _EventCreatePageState extends State<EventCreatePage> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Event Saved successfully"), backgroundColor: AppColors.success)
+        const SnackBar(
+            content: Text("Event Saved successfully"), backgroundColor: AppColors.success)
     );
 
-    Navigator.pop(context); 
+    Navigator.pop(context);
   }
 
   @override
@@ -246,12 +298,13 @@ class _EventCreatePageState extends State<EventCreatePage> {
     super.dispose();
   }
 
-  Widget buildTextField(TextEditingController controller, String label, IconData icon, {int maxLines = 1, TextInputType type = TextInputType.text}) {
+  Widget buildTextField(TextEditingController controller, String label, IconData icon,
+      {int maxLines = 1, TextInputType type = TextInputType.text}) {
     return TextFormField(
       controller: controller,
       textInputAction: maxLines > 3 ? TextInputAction.newline : TextInputAction.next,
       maxLines: maxLines,
-      keyboardType: type,
+      keyboardType: maxLines > 1 ? TextInputType.multiline : type,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: maxLines == 1 ? Icon(icon) : null,
@@ -275,29 +328,22 @@ class _EventCreatePageState extends State<EventCreatePage> {
               children: [
                 buildTextField(titleController, "Event Title *", Icons.event),
                 const Gap(16),
-                buildTextField(descriptionController, "Event Description *", Icons.description, maxLines: 3),
+                buildTextField(
+                    descriptionController, "Event Description *", Icons.description, maxLines: 3),
                 const Gap(16),
-                
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: buildTextField(organizerController, "Host Name *", Icons.person),
-                    ),
-                    Gap(12.w),
-                    Expanded(
-                      flex: 1,
-                      child: buildTextField(capacityController, "Capacity *", Icons.group_add, type: TextInputType.number),
-                    ),
-                  ],
-                ),
-                
+
+                // Responsive Break: Separated Row into Column
+                buildTextField(organizerController, "Host Name *", Icons.person),
                 const Gap(16),
+                buildTextField(capacityController, "Max Capacity *", Icons.group_add,
+                    type: TextInputType.number),
+                const Gap(16),
+
                 buildTextField(organizationController, "Organization Name", Icons.business),
                 const Gap(16),
                 buildTextField(departmentController, "Department", Icons.groups),
                 const Gap(16),
-                
+
                 // Venue Search
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -310,26 +356,26 @@ class _EventCreatePageState extends State<EventCreatePage> {
                         prefixIcon: const Icon(Icons.location_on),
                         suffixIcon: isSearching
                             ? const Padding(
-                                padding: EdgeInsets.all(12),
-                                child: SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                ),
-                              )
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
                             : venueController.text.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear),
-                                    onPressed: () {
-                                      setState(() {
-                                        venueController.clear();
-                                        predictions = [];
-                                        selectedLat = null;
-                                        selectedLng = null;
-                                      });
-                                    },
-                                  )
-                                : null,
+                            ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            setState(() {
+                              venueController.clear();
+                              predictions = [];
+                              selectedLat = null;
+                              selectedLng = null;
+                            });
+                          },
+                        )
+                            : null,
                       ),
                       onChanged: (value) {
                         Future.delayed(const Duration(milliseconds: 600), () {
@@ -361,14 +407,14 @@ class _EventCreatePageState extends State<EventCreatePage> {
                           separatorBuilder: (_, __) => const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final p = predictions[index];
-                            
+
                             final fullName = p['name'] as String;
                             final parts = fullName.split(',');
                             final mainText = parts[0].trim();
                             final subText = parts.length > 1
                                 ? parts.sublist(1, parts.length > 3 ? 3 : parts.length)
-                                    .join(',')
-                                    .trim()
+                                .join(',')
+                                .trim()
                                 : '';
 
                             return ListTile(
@@ -380,14 +426,14 @@ class _EventCreatePageState extends State<EventCreatePage> {
                               ),
                               subtitle: subText.isNotEmpty
                                   ? Text(
-                                      subText,
-                                      style: TextStyle(
-                                        fontSize: 12.sp,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    )
+                                subText,
+                                style: TextStyle(
+                                  fontSize: 12.sp,
+                                  color: AppColors.textSecondary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              )
                                   : null,
                               onTap: () {
                                 setState(() {
@@ -429,27 +475,24 @@ class _EventCreatePageState extends State<EventCreatePage> {
                       ),
                   ],
                 ),
-                const Gap(16),
+                const Gap(32),
 
-                // Date & Time
+                // Event Date & Time
+                const Text("Event Timings",
+                    style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                Gap(8.h),
                 Row(
                   children: [
                     Expanded(
                       child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.border),
-                          borderRadius: BorderRadius.circular(12.r),
-                        ),
+                        decoration: BoxDecoration(border: Border.all(color: AppColors.border),
+                            borderRadius: BorderRadius.circular(12.r)),
                         child: ListTile(
-                          leading: const Icon(
-                            Icons.calendar_today,
-                            color: AppColors.primary,
-                          ),
+                          leading: const Icon(Icons.calendar_today, color: AppColors.primary),
                           title: Text(
-                            selectedDate == null
-                                ? "Date *"
-                                : "${selectedDate!.day}-${selectedDate!.month}-${selectedDate!.year}",
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                            selectedDate == null ? "Event Date *" : "${selectedDate!
+                                .day}-${selectedDate!.month}-${selectedDate!.year}",
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                           ),
                           onTap: pickDate,
                         ),
@@ -458,20 +501,13 @@ class _EventCreatePageState extends State<EventCreatePage> {
                     SizedBox(width: 12.w),
                     Expanded(
                       child: Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: AppColors.border),
-                          borderRadius: BorderRadius.circular(12.r),
-                        ),
+                        decoration: BoxDecoration(border: Border.all(color: AppColors.border),
+                            borderRadius: BorderRadius.circular(12.r)),
                         child: ListTile(
-                          leading: const Icon(
-                            Icons.access_time,
-                            color: AppColors.primary,
-                          ),
+                          leading: const Icon(Icons.access_time, color: AppColors.primary),
                           title: Text(
-                            selectedTime == null
-                                ? "Time *"
-                                : formatTimeOfDay(selectedTime!),
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                            selectedTime == null ? "Event Time *" : formatTimeOfDay(selectedTime!),
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                           ),
                           onTap: pickTime,
                         ),
@@ -479,6 +515,52 @@ class _EventCreatePageState extends State<EventCreatePage> {
                     ),
                   ],
                 ),
+                Gap(24.h),
+
+                // Registration Deadline
+                const Text("Registration Deadline",
+                    style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.warning)),
+                Gap(8.h),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(border: Border.all(color: AppColors.warning
+                            .withAlpha(100)),
+                            borderRadius: BorderRadius.circular(12.r),
+                            color: AppColors.warning.withAlpha(20)),
+                        child: ListTile(
+                          leading: const Icon(Icons.edit_calendar, color: AppColors.warning),
+                          title: Text(
+                            regSelectedDate == null ? "Close Date *" : "${regSelectedDate!
+                                .day}-${regSelectedDate!.month}-${regSelectedDate!.year}",
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                          ),
+                          onTap: pickRegDate,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 12.w),
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(border: Border.all(color: AppColors.warning
+                            .withAlpha(100)),
+                            borderRadius: BorderRadius.circular(12.r),
+                            color: AppColors.warning.withAlpha(20)),
+                        child: ListTile(
+                          leading: const Icon(Icons.timer_off, color: AppColors.warning),
+                          title: Text(
+                            regSelectedTime == null ? "Close Time *" : formatTimeOfDay(
+                                regSelectedTime!),
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                          ),
+                          onTap: pickRegTime,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
                 const Gap(32),
 
                 ElevatedButton.icon(

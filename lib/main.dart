@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -16,7 +17,7 @@ import 'event/event_details.dart';
 import 'firebase_options.dart';
 
 final FlutterLocalNotificationsPlugin localNotifications =
-    FlutterLocalNotificationsPlugin();
+FlutterLocalNotificationsPlugin();
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 // Store initial eventId for deep linking
@@ -76,6 +77,16 @@ Future<void> setupFCM() async {
     // Request Permission
     await messaging.requestPermission(alert: true, badge: true, sound: true);
 
+    // Save Organizer/User FCM Token so Admins can push to them
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final token = await messaging.getToken();
+      if (token != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
+            {'fcmToken': token});
+      }
+    }
+
     // Subscribe ALL participants
     await messaging.subscribeToTopic("participants");
 
@@ -84,7 +95,7 @@ Future<void> setupFCM() async {
       // Ensure you have an app_icon.png in your android/app/src/main/res/drawable folder,
       // otherwise change '@mipmap/ic_launcher' to your correct icon name.
       const AndroidInitializationSettings androidInit =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
+      AndroidInitializationSettings('@mipmap/ic_launcher');
 
       const InitializationSettings initSettings = InitializationSettings(
         android: androidInit,
@@ -100,14 +111,14 @@ Future<void> setupFCM() async {
 
       await localNotifications
           .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >()
+          AndroidFlutterLocalNotificationsPlugin
+      >()
           ?.createNotificationChannel(channel);
 
       await localNotifications
           .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >()
+          AndroidFlutterLocalNotificationsPlugin
+      >()
           ?.requestNotificationsPermission();
     } catch (e) {
       debugPrint("🔴 LOCAL NOTIFICATIONS INIT ERROR: $e");
@@ -116,7 +127,6 @@ Future<void> setupFCM() async {
     // FOREGROUND MESSAGE
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       showNotification(message);
-      // Removed the buggy redundant database write that was duplicating generic notifications.
     });
 
     // ON CLICK
@@ -136,11 +146,12 @@ Future<void> setupFCM() async {
 
           navigatorKey.currentState?.push(
             MaterialPageRoute(
-              builder: (_) => EventDetailsPage(
-                eventData: data,
-                eventDate: null,
-                eventId: eventId,
-              ),
+              builder: (_) =>
+                  EventDetailsPage(
+                    eventData: data,
+                    eventDate: null,
+                    eventId: eventId,
+                  ),
             ),
           );
         } catch (e) {
@@ -158,14 +169,16 @@ Future<void> showNotification(RemoteMessage message) async {
   try {
     final title =
         message.notification?.title ??
-        message.data['newsTitle'] ??
-        "Event Update";
+            message.data['newsTitle'] ??
+            "Event Update";
 
     final body =
         message.notification?.body ?? message.data['newsDescription'] ?? "";
 
     await localNotifications.show(
-      DateTime.now().millisecondsSinceEpoch,
+      DateTime
+          .now()
+          .millisecondsSinceEpoch,
       title,
       body,
       const NotificationDetails(
@@ -209,6 +222,7 @@ class _MyAppState extends State<MyApp> {
     super.dispose();
   }
 
+  // ─── DEEP LINKING LOGIC ───
   Future<void> initDeepLinks() async {
     _appLinks = AppLinks();
 
@@ -223,7 +237,7 @@ class _MyAppState extends State<MyApp> {
     }
 
     _linkSubscription = _appLinks.uriLinkStream.listen(
-      (uri) {
+          (uri) {
         _handleDeepLink(uri);
       },
       onError: (err) {
@@ -235,26 +249,16 @@ class _MyAppState extends State<MyApp> {
   void _handleDeepLink(Uri uri) async {
     // Expected incoming URI from our backend intent: smartevent://invite/EVENT_ID
     if (uri.scheme == 'smartevent' && uri.host == 'invite') {
-      final eventId = uri.pathSegments.isNotEmpty
-          ? uri.pathSegments.first
-          : null;
+      final eventId = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
       if (eventId != null && eventId.isNotEmpty) {
         // Wait briefly for Splash Screen routing if app just launched
         Future.delayed(const Duration(seconds: 4), () async {
           try {
-            final doc = await FirebaseFirestore.instance
-                .collection('events')
-                .doc(eventId)
-                .get();
+            final doc = await FirebaseFirestore.instance.collection('events').doc(eventId).get();
             if (doc.exists) {
-              navigatorKey.currentState?.push(
-                MaterialPageRoute(
-                  builder: (_) => EventDetailsPage(
-                    eventData: doc.data()!,
-                    eventId: eventId,
-                  ),
-                ),
-              );
+              navigatorKey.currentState?.push(MaterialPageRoute(
+                  builder: (_) => EventDetailsPage(eventData: doc.data()!, eventId: eventId)
+              ));
             }
           } catch (e) {
             debugPrint("Deep link navigation error: $e");
@@ -280,11 +284,12 @@ class _MyAppState extends State<MyApp> {
 
         navigatorKey.currentState?.push(
           MaterialPageRoute(
-            builder: (_) => EventDetailsPage(
-              eventData: doc.data()!,
-              eventDate: null,
-              eventId: initialEventId!,
-            ),
+            builder: (_) =>
+                EventDetailsPage(
+                  eventData: doc.data()!,
+                  eventDate: null,
+                  eventId: initialEventId!,
+                ),
           ),
         );
       } catch (e) {

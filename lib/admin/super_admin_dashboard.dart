@@ -9,6 +9,7 @@ import 'package:smart_event_app/admin/admin_event_report_page.dart';
 import 'package:smart_event_app/admin/super_admin_service.dart';
 import 'package:smart_event_app/auth/login_page.dart';
 import 'package:smart_event_app/services/auth_service.dart';
+import 'package:smart_event_app/theme/app_colors.dart';
 
 class SuperAdminDashboard extends StatefulWidget {
   final String role; // 'super_admin' or 'staff_admin'
@@ -43,6 +44,31 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
   void dispose() {
     _banListener?.cancel();
     super.dispose();
+  }
+
+  Future<void> _handleLogoutDialog() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) =>
+          AlertDialog(
+            title: const Text(
+                "Log Out", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
+            content: const Text("Are you sure you want to exit the Super Admin platform?"),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false), child: const Text("Cancel")),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text("Log Out"),
+              ),
+            ],
+          ),
+    );
+
+    if (confirm == true) {
+      _forceLogout();
+    }
   }
 
   Future<void> _forceLogout() async {
@@ -88,7 +114,7 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
             tooltip: "Logout",
-            onPressed: _forceLogout,
+            onPressed: _handleLogoutDialog,
           ),
         ],
       ),
@@ -267,9 +293,17 @@ class _ApprovalsTab extends StatelessWidget {
             final doc = docs[index];
             final data = doc.data() as Map<String, dynamic>;
 
+            // Format Registration Deadline if it exists
+            String regDeadlineStr = "N/A";
+            if (data['registrationDeadline'] != null) {
+              final d = (data['registrationDeadline'] as Timestamp).toDate();
+              regDeadlineStr =
+              "${d.day}/${d.month}/${d.year} ${d.hour}:${d.minute.toString().padLeft(2, '0')}";
+            }
+
             return Card(
-              margin: EdgeInsets.only(bottom: 12.h),
-              elevation: 2,
+              margin: EdgeInsets.only(bottom: 16.h),
+              elevation: 3,
               child: Padding(
                 padding: EdgeInsets.all(16.w),
                 child: Column(
@@ -283,8 +317,21 @@ class _ApprovalsTab extends StatelessWidget {
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
                       ],
                     ),
+                    const Divider(),
                     Gap(8.h),
-                    Text("Host: ${data['organizer'] ?? 'Unknown'}\nVenue: ${data['venue'] ?? ''}"),
+
+                    // Detailed Information for Admin
+                    Text("Host: ${data['organizer'] ?? 'Unknown'}",
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text("Organization: ${data['organization'] ?? 'N/A'}"),
+                    Text("Venue: ${data['venue'] ?? 'N/A'}"),
+                    Text("Max Capacity: ${data['maxCapacity'] ?? 'N/A'}"),
+                    Text("Reg. Deadline: $regDeadlineStr"),
+                    Gap(8.h),
+                    const Text("Description:", style: TextStyle(fontWeight: FontWeight.w600)),
+                    Text("${data['description'] ?? 'No description provided'}",
+                        style: TextStyle(color: Colors.grey.shade700, fontSize: 13.sp)),
+
                     Gap(16.h),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
@@ -293,20 +340,43 @@ class _ApprovalsTab extends StatelessWidget {
                           icon: const Icon(Icons.close, color: Colors.red),
                           label: const Text("Reject", style: TextStyle(color: Colors.red)),
                           onPressed: () async {
-                            await FirebaseFirestore.instance
-                                .collection('events')
-                                .doc(doc.id)
-                                .update({'approvalStatus': 'rejected'});
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (_) =>
+                                  AlertDialog(
+                                    title: const Text("Reject Event?"),
+                                    content: const Text(
+                                        "Are you sure you want to reject this event?"),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(context, false),
+                                          child: const Text("Cancel")),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.red),
+                                        onPressed: () => Navigator.pop(context, true),
+                                        child: const Text("Reject"),
+                                      ),
+                                    ],
+                                  ),
+                            );
 
-                            // Send targeted rejection notification to Organizer
-                            await FirebaseFirestore.instance.collection("notifications").add({
-                              "title": "Event Verification Failed",
-                              "body": "Your event '${data['title']}' was rejected by the Admin.",
-                              "time": FieldValue.serverTimestamp(),
-                              "isRead": false,
-                              "eventId": doc.id,
-                              "targetUserId": data['organizerId'],
-                            });
+                            if (confirm == true) {
+                              await FirebaseFirestore.instance
+                                  .collection('events')
+                                  .doc(doc.id)
+                                  .update({'approvalStatus': 'rejected'});
+
+                              // Send targeted rejection notification to Organizer explicitly
+                              await FirebaseFirestore.instance.collection("notifications").add({
+                                "title": "Event Verification Failed",
+                                "body": "Your event '${data['title']}' was rejected by the Admin.",
+                                "time": FieldValue.serverTimestamp(),
+                                "isRead": false,
+                                "eventId": doc.id,
+                                "targetUserId": data['organizerId'],
+                                "targetRole": "organizer", // FIX: Lock to organizer role
+                              });
+                            }
                           },
                         ),
                         Gap(8.w),
@@ -315,20 +385,43 @@ class _ApprovalsTab extends StatelessWidget {
                           icon: const Icon(Icons.check, color: Colors.white),
                           label: const Text("Approve", style: TextStyle(color: Colors.white)),
                           onPressed: () async {
-                            await FirebaseFirestore.instance
-                                .collection('events')
-                                .doc(doc.id)
-                                .update({'approvalStatus': 'approved'});
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (_) =>
+                                  AlertDialog(
+                                    title: const Text("Approve Event?"),
+                                    content: const Text(
+                                        "This will make the event publicly visible. Proceed?"),
+                                    actions: [
+                                      TextButton(onPressed: () => Navigator.pop(context, false),
+                                          child: const Text("Cancel")),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green),
+                                        onPressed: () => Navigator.pop(context, true),
+                                        child: const Text("Approve"),
+                                      ),
+                                    ],
+                                  ),
+                            );
 
-                            // Send targeted approval notification to Organizer
-                            await FirebaseFirestore.instance.collection("notifications").add({
-                              "title": "Event Approved!",
-                              "body": "Your event '${data['title']}' is verified and publicly visible.",
-                              "time": FieldValue.serverTimestamp(),
-                              "isRead": false,
-                              "eventId": doc.id,
-                              "targetUserId": data['organizerId'],
-                            });
+                            if (confirm == true) {
+                              await FirebaseFirestore.instance
+                                  .collection('events')
+                                  .doc(doc.id)
+                                  .update({'approvalStatus': 'approved'});
+
+                              // Send targeted approval notification to Organizer explicitly
+                              await FirebaseFirestore.instance.collection("notifications").add({
+                                "title": "Event Approved!",
+                                "body": "Your event '${data['title']}' is verified and publicly visible.",
+                                "time": FieldValue.serverTimestamp(),
+                                "isRead": false,
+                                "eventId": doc.id,
+                                "targetUserId": data['organizerId'],
+                                "targetRole": "organizer", // FIX: Lock to organizer role
+                              });
+                            }
                           },
                         ),
                       ],
@@ -527,6 +620,29 @@ class _BroadcastTabState extends State<_BroadcastTab> {
                     return;
                   }
 
+                  // Confirm broadcast
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (_) =>
+                        AlertDialog(
+                          title: const Text("Transmit Global Alert?",
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                          content: const Text(
+                              "This will ping the phone of every single registered app user instantly. Are you absolutely sure?"),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(context, false),
+                                child: const Text("Cancel")),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text("Transmit"),
+                            ),
+                          ],
+                        ),
+                  );
+
+                  if (confirm != true) return;
+
                   setState(() => isSending = true);
                   try {
                     await _service.sendGlobalNotification(
@@ -676,16 +792,37 @@ class _StaffTabState extends State<_StaffTab> {
                       trailing: IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
                         onPressed: () async {
-                          try {
-                            await _service.removeStaff(email);
-                            _fetchStaff();
-                            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                    content: Text("Staff removed"), backgroundColor: Colors.green));
-                          } catch (e) {
-                            if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Failed to remove: $e"),
-                                    backgroundColor: Colors.red));
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (_) =>
+                                AlertDialog(
+                                  title: const Text("Remove Staff?"),
+                                  content: Text(
+                                      "Are you sure you want to revoke staff privileges from $email?"),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context, false),
+                                        child: const Text("Cancel")),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                      onPressed: () => Navigator.pop(context, true),
+                                      child: const Text("Remove"),
+                                    ),
+                                  ],
+                                ),
+                          );
+
+                          if (confirm == true) {
+                            try {
+                              await _service.removeStaff(email);
+                              _fetchStaff();
+                              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Staff removed"),
+                                      backgroundColor: Colors.green));
+                            } catch (e) {
+                              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Failed to remove: $e"),
+                                      backgroundColor: Colors.red));
+                            }
                           }
                         },
                       ),

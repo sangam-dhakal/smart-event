@@ -39,7 +39,16 @@ class FeedbackListPage extends StatelessWidget {
             return const Center(child: Text("An error occurred loading feedback."));
           }
 
-          final docs = snapshot.data?.docs ?? [];
+          // FIX: Sort locally to bypass the missing Firebase Composite Index error.
+          final docs = snapshot.data?.docs.toList() ?? [];
+          docs.sort((a, b) {
+            final aTime = a.data()['timestamp'] as Timestamp?;
+            final bTime = b.data()['timestamp'] as Timestamp?;
+            if (aTime == null && bTime == null) return 0;
+            if (aTime == null) return 1;
+            if (bTime == null) return -1;
+            return bTime.compareTo(aTime); // descending
+          });
 
           if (docs.isEmpty) {
             return Center(
