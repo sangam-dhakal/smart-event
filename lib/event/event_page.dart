@@ -36,7 +36,7 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    
+
     // Listen for Real-Time Account Suspensions
     _banListener = FirebaseFirestore.instance
         .collection('users')
@@ -62,7 +62,7 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const LoginPage()),
-        (route) => false,
+            (route) => false,
       );
     }
   }
@@ -194,55 +194,58 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
                           context: context,
                           builder: (_) {
                             return AlertDialog(
-                              title: const Text("Organizer Alerts", style: TextStyle(fontWeight: FontWeight.bold)),
+                              title: const Text("Organizer Alerts",
+                                  style: TextStyle(fontWeight: FontWeight.bold)),
                               content: SizedBox(
                                 width: double.maxFinite,
                                 child: docs.isEmpty
                                     ? const Padding(
-                                        padding: EdgeInsets.all(16.0),
-                                        child: Text("No alerts yet."),
-                                      )
+                                  padding: EdgeInsets.all(16.0),
+                                  child: Text("No alerts yet."),
+                                )
                                     : ListView(
-                                        shrinkWrap: true,
-                                        children: docs.map((doc) {
-                                          final data = doc.data() as Map<String, dynamic>;
-                                          return ListTile(
-                                            title: Text(data["title"] ?? "", style: const TextStyle(fontWeight: FontWeight.bold)),
-                                            subtitle: Text(data["body"] ?? ""),
-                                            tileColor: data["isRead"] == false
-                                                ? AppColors.primary.withAlpha(20)
-                                                : null,
-                                            onTap: () async {
-                                              // Mark as read
-                                              await FirebaseFirestore.instance
-                                                  .collection("notifications")
-                                                  .doc(doc.id)
-                                                  .update({"isRead": true});
+                                  shrinkWrap: true,
+                                  children: docs.map((doc) {
+                                    final data = doc.data() as Map<String, dynamic>;
+                                    return ListTile(
+                                      title: Text(data["title"] ?? "",
+                                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                                      subtitle: Text(data["body"] ?? ""),
+                                      tileColor: data["isRead"] == false
+                                          ? AppColors.primary.withAlpha(20)
+                                          : null,
+                                      onTap: () async {
+                                        // Mark as read
+                                        await FirebaseFirestore.instance
+                                            .collection("notifications")
+                                            .doc(doc.id)
+                                            .update({"isRead": true});
 
-                                              final eventId = data["eventId"];
-                                              if (eventId == null) return;
+                                        final eventId = data["eventId"];
+                                        if (eventId == null) return;
 
-                                              final eventDoc = await FirebaseFirestore.instance.collection("events").doc(eventId).get();
-                                              if (!eventDoc.exists || !context.mounted) return;
+                                        final eventDoc = await FirebaseFirestore.instance
+                                            .collection("events").doc(eventId).get();
+                                        if (!eventDoc.exists || !context.mounted) return;
 
-                                              final eventData = eventDoc.data()!;
+                                        final eventData = eventDoc.data()!;
 
-                                              Navigator.pop(context); 
-                                              Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) =>
-                                                      EventDetailsPage(
-                                                        eventData: eventData,
-                                                        eventDate: safeDate(eventData['date']),
-                                                        eventId: eventId,
-                                                      ),
+                                        Navigator.pop(context);
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                EventDetailsPage(
+                                                  eventData: eventData,
+                                                  eventDate: safeDate(eventData['date']),
+                                                  eventId: eventId,
                                                 ),
-                                              );
-                                            },
-                                          );
-                                        }).toList(),
-                                      ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  }).toList(),
+                                ),
                               ),
                             );
                           },
@@ -276,7 +279,7 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
             ),
           ],
         ),
-        
+
         // MOVED FAB TO SCAFFOLD LEVEL SO IT NEVER DISAPPEARS
         floatingActionButton: FloatingActionButton.extended(
           heroTag: "create_event",
@@ -285,7 +288,7 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
               context,
               MaterialPageRoute(
                 builder: (_) =>
-                    const EventCreatePage(eventData: null, docId: null),
+                const EventCreatePage(eventData: null, docId: null),
               ),
             );
           },
@@ -306,14 +309,17 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
 
             // Only load events owned by the current organizer
             final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-            final docs = snapshot.data!.docs.where((d) => d.data()['organizerId'] == currentUserId).toList();
+            final docs = snapshot.data!
+                .docs
+                .where((d) => d.data()['organizerId'] == currentUserId)
+                .toList();
 
             if (docs.isEmpty) {
               return const Center(
-                child: Text(
-                  "No events found. Tap 'Create Event' to make one.", 
-                  style: TextStyle(color: AppColors.textSecondary)
-                )
+                  child: Text(
+                      "No events found. Tap 'Create Event' to make one.",
+                      style: TextStyle(color: AppColors.textSecondary)
+                  )
               );
             }
 
@@ -323,11 +329,11 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
               children: docs.map((doc) {
                 final data = doc.data();
                 final eventDate = safeDate(data['date']);
-                
+
                 final status = data['approvalStatus'] ?? 'approved';
                 Color badgeColor = AppColors.success;
                 String badgeText = "Approved";
-                
+
                 if (status == 'pending') {
                   badgeColor = AppColors.warning;
                   badgeText = "Pending Verification";
@@ -345,18 +351,19 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
                       if (_fromAnalytics) {
                         analyticsEventId = eventId;
                         setState(() {
-                          _fromAnalytics = false; 
-                          currentIndex = 1; 
+                          _fromAnalytics = false;
+                          currentIndex = 1;
                         });
                       } else {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => EventDetailsPage(
-                              eventData: data,
-                              eventDate: eventDate,
-                              eventId: eventId,
-                            ),
+                            builder: (_) =>
+                                EventDetailsPage(
+                                  eventData: data,
+                                  eventDate: eventDate,
+                                  eventId: eventId,
+                                ),
                           ),
                         );
                       }
@@ -370,15 +377,21 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
                           color: AppColors.primary,
                         ),
                       ),
-                      title: Text(data['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      title: Text(
+                          data['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Gap(4.h),
-                          Text([data['venue'] ?? ''].where((element) => element.isNotEmpty).join(' • ')),
-                          if (data['description'] != null && data['description'].toString().isNotEmpty) ...[
+                          Text([data['venue'] ?? ''].where((element) => element.isNotEmpty).join(
+                              ' • ')),
+                          if (data['description'] != null && data['description']
+                              .toString()
+                              .isNotEmpty) ...[
                             Gap(4.h),
-                            Text(data['description'], maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.sp, color: AppColors.textSecondary)),
+                            Text(data['description'], maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 12.sp, color: AppColors.textSecondary)),
                           ],
                           Gap(8.h),
                           Container(
@@ -387,7 +400,8 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
                               color: badgeColor.withAlpha(30),
                               borderRadius: BorderRadius.circular(4.r),
                             ),
-                            child: Text(badgeText, style: TextStyle(color: badgeColor, fontSize: 10.sp, fontWeight: FontWeight.bold)),
+                            child: Text(badgeText, style: TextStyle(
+                                color: badgeColor, fontSize: 10.sp, fontWeight: FontWeight.bold)),
                           )
                         ],
                       ),
@@ -400,10 +414,11 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => EventCreatePage(
-                                    eventData: data,
-                                    docId: doc.id,
-                                  ),
+                                  builder: (_) =>
+                                      EventCreatePage(
+                                        eventData: data,
+                                        docId: doc.id,
+                                      ),
                                 ),
                               );
                             },
@@ -413,21 +428,23 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
                             onPressed: () async {
                               final deleted = await showDialog(
                                 context: context,
-                                builder: (_) => AlertDialog(
-                                  title: const Text("Delete Event"),
-                                  content: const Text("Are you sure you want to delete?"),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: const Text("Cancel"),
+                                builder: (_) =>
+                                    AlertDialog(
+                                      title: const Text("Delete Event"),
+                                      content: const Text("Are you sure you want to delete?"),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context, false),
+                                          child: const Text("Cancel"),
+                                        ),
+                                        ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppColors.error),
+                                          onPressed: () => Navigator.pop(context, true),
+                                          child: const Text("Delete"),
+                                        ),
+                                      ],
                                     ),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: const Text("Delete"),
-                                    ),
-                                  ],
-                                ),
                               );
                               if (deleted == true) {
                                 try {
@@ -435,12 +452,14 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       backgroundColor: AppColors.success,
-                                      content: Text("Deleted Successfully", style: TextStyle(color: Colors.white)),
+                                      content: Text("Deleted Successfully",
+                                          style: TextStyle(color: Colors.white)),
                                     ),
                                   );
                                 } catch (e) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+                                    SnackBar(content: Text(e.toString()),
+                                        backgroundColor: AppColors.error),
                                   );
                                 }
                               }
@@ -465,254 +484,301 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
 
     return SafeArea(
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: service.getEvents(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          stream: service.getEvents(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
-          // Get only the events owned by the current user
-          final myEvents = snapshot.data!.docs.where((doc) {
-            return doc.data()['organizerId'] == currentUserId;
-          }).toList();
+            // Get only the events owned by the current user
+            final myEvents = snapshot.data!.docs.where((doc) {
+              return doc.data()['organizerId'] == currentUserId;
+            }).toList();
 
-          // Empty state
-          if (myEvents.isEmpty) {
+            // Empty state
+            if (myEvents.isEmpty) {
+              return Column(
+                children: [
+                  Container(
+                    color: AppColors.primary,
+                    padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                    child: Row(
+                      children: [
+                        Text("Event Analytics", style: Theme
+                            .of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(color: Colors.white)),
+                        const Spacer(),
+                        const Text("No events", style: TextStyle(color: Colors.white70)),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        "No events found.\nCreate an event first.",
+                        textAlign: TextAlign.center,
+                        style: Theme
+                            .of(context)
+                            .textTheme
+                            .bodyLarge
+                            ?.copyWith(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            // Validate current ID to prevent Dropdown Assertion Error
+            bool isValid = myEvents.any((doc) => doc.id == analyticsEventId);
+            String safeEventId = isValid ? analyticsEventId! : myEvents.first.id;
+
+            // Sync state if it was invalid
+            if (analyticsEventId != safeEventId) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) setState(() => analyticsEventId = safeEventId);
+              });
+            }
+
             return Column(
               children: [
+                // ── Event Switcher Header ──
                 Container(
                   color: AppColors.primary,
-                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
                   child: Row(
                     children: [
-                      Text("Event Analytics", style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
-                      const Spacer(),
-                      const Text("No events", style: TextStyle(color: Colors.white70)),
+                      Text(
+                        "Analytics",
+                        style: Theme
+                            .of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(color: Colors.white),
+                      ),
+                      SizedBox(width: 16.w),
+                      Expanded(
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            isExpanded: true,
+                            value: safeEventId,
+                            dropdownColor: AppColors.primary,
+                            iconEnabledColor: Colors.white,
+                            items: myEvents.map((doc) {
+                              final title = doc.data()['title'] ?? 'Untitled';
+                              return DropdownMenuItem<String>(
+                                value: doc.id,
+                                child: Text(
+                                  title,
+                                  style: const TextStyle(
+                                      color: Colors.white, fontWeight: FontWeight.bold),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (eventId) {
+                              setState(() => analyticsEventId = eventId);
+                            },
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
+
+                // ── Attendance Table ──
                 Expanded(
-                  child: Center(
-                    child: Text(
-                      "No events found.\nCreate an event first.",
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary),
-                    ),
+                  child: FutureBuilder<DocumentSnapshot>(
+                      future: FirebaseFirestore.instance
+                          .collection('events')
+                          .doc(safeEventId)
+                          .get(),
+                      builder: (context, eventSnapshot) {
+                        if (!eventSnapshot.hasData)
+                          return const Center(child: CircularProgressIndicator());
+
+                        final eventData = eventSnapshot.data!.data() as Map<String, dynamic>?;
+                        if (eventData == null) return const SizedBox();
+
+                        // Calculate if event is in the past
+                        DateTime? eDate = safeDate(eventData['date']);
+                        final now = DateTime.now();
+                        bool isPast = eDate != null &&
+                            eDate.isBefore(DateTime(now.year, now.month, now.day));
+
+                        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                          stream: FirebaseFirestore.instance
+                              .collection('participants')
+                              .where('eventId', isEqualTo: safeEventId)
+                              .where('status', isEqualTo: 'accepted')
+                              .snapshots(),
+                          builder: (context, participantSnapshot) {
+                            if (!participantSnapshot.hasData) {
+                              return const Center(
+                                child: CircularProgressIndicator(),
+                              );
+                            }
+
+                            final docs = participantSnapshot.data!.docs;
+
+                            if (docs.isEmpty) {
+                              return const Center(
+                                child: Text(
+                                  "No accepted participants yet.",
+                                  style: TextStyle(color: AppColors.textSecondary),
+                                ),
+                              );
+                            }
+
+                            // Count for summary
+                            final total = docs.length;
+                            final present = docs
+                                .where((d) => d.data()['attendance'] == true)
+                                .length;
+                            final absentOrExpected = total - present;
+
+                            return Column(
+                              children: [
+                                // ── Summary Cards ──
+                                Padding(
+                                  padding: EdgeInsets.all(16.w),
+                                  child: Row(
+                                    children: [
+                                      _SummaryCard(label: "Total Guests",
+                                          count: total,
+                                          color: AppColors.primary),
+                                      SizedBox(width: 10.w),
+                                      _SummaryCard(label: "Checked In",
+                                          count: present,
+                                          color: AppColors.success),
+                                      SizedBox(width: 10.w),
+                                      _SummaryCard(
+                                          label: isPast ? "Absent" : "Pending",
+                                          count: absentOrExpected,
+                                          color: isPast ? AppColors.error : AppColors.warning
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // ── Table Header ──
+                                Container(
+                                  color: AppColors.primary.withAlpha(25),
+                                  padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
+                                  child: Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 36.w,
+                                        child: const Text("S.N", style: TextStyle(
+                                            fontWeight: FontWeight.bold, color: AppColors.primary)),
+                                      ),
+                                      const Expanded(
+                                        flex: 3,
+                                        child: Text("Name", style: TextStyle(
+                                            fontWeight: FontWeight.bold, color: AppColors.primary)),
+                                      ),
+                                      const Expanded(
+                                        flex: 4,
+                                        child: Text("Email", style: TextStyle(
+                                            fontWeight: FontWeight.bold, color: AppColors.primary)),
+                                      ),
+                                      SizedBox(
+                                        width: 75.w,
+                                        child: const Text("Status", style: TextStyle(
+                                            fontWeight: FontWeight.bold, color: AppColors.primary),
+                                            textAlign: TextAlign.center),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                Divider(height: 1.h, color: AppColors.border),
+
+                                // ── Table Rows ──
+                                Expanded(
+                                  child: ListView.separated(
+                                    itemCount: docs.length,
+                                    separatorBuilder: (_, __) =>
+                                        Divider(height: 1.h, color: AppColors.border),
+                                    itemBuilder: (context, index) {
+                                      final data = docs[index].data();
+                                      final isPresent = data['attendance'] == true;
+
+                                      final attText = isPresent ? "Present" : (isPast
+                                          ? "Absent"
+                                          : "Expected");
+                                      final attColorBg = isPresent
+                                          ? AppColors.success.withAlpha(30)
+                                          : (isPast ? AppColors.error.withAlpha(30) : AppColors
+                                          .warning.withAlpha(30));
+                                      final attColorText = isPresent ? AppColors.success : (isPast
+                                          ? AppColors.error
+                                          : AppColors.warning);
+
+                                      return Container(
+                                        color: index.isEven ? AppColors.surface : AppColors
+                                            .background,
+                                        padding: EdgeInsets.symmetric(
+                                            horizontal: 16.w, vertical: 12.h),
+                                        child: Row(
+                                          children: [
+                                            SizedBox(
+                                              width: 36.w,
+                                              child: Text("${index + 1}", style: TextStyle(
+                                                  color: AppColors.textSecondary, fontSize: 13.sp)),
+                                            ),
+                                            Expanded(
+                                              flex: 3,
+                                              child: Text(data['name'] ?? '-', style: TextStyle(
+                                                  fontSize: 13.sp,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: AppColors.textPrimary),
+                                                  overflow: TextOverflow.ellipsis),
+                                            ),
+                                            Expanded(
+                                              flex: 4,
+                                              child: Text(data['email'] ?? '-', style: TextStyle(
+                                                  fontSize: 12.sp, color: AppColors.textSecondary),
+                                                  overflow: TextOverflow.ellipsis),
+                                            ),
+                                            SizedBox(
+                                              width: 72.w,
+                                              child: Center(
+                                                child: Container(
+                                                  padding: EdgeInsets.symmetric(
+                                                      horizontal: 8.w, vertical: 4.h),
+                                                  decoration: BoxDecoration(
+                                                    color: attColorBg,
+                                                    borderRadius: BorderRadius.circular(20.r),
+                                                  ),
+                                                  child: Text(
+                                                    attText,
+                                                    style: TextStyle(
+                                                      fontSize: 11.sp,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: attColorText,
+                                                    ),
+                                                    textAlign: TextAlign.center,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      }
                   ),
                 ),
               ],
             );
           }
-
-          // Validate current ID to prevent Dropdown Assertion Error
-          bool isValid = myEvents.any((doc) => doc.id == analyticsEventId);
-          String safeEventId = isValid ? analyticsEventId! : myEvents.first.id;
-
-          // Sync state if it was invalid
-          if (analyticsEventId != safeEventId) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) setState(() => analyticsEventId = safeEventId);
-            });
-          }
-
-          return Column(
-            children: [
-              // ── Event Switcher Header ──
-              Container(
-                color: AppColors.primary,
-                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                child: Row(
-                  children: [
-                    Text(
-                      "Analytics",
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
-                    ),
-                    SizedBox(width: 16.w),
-                    Expanded(
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          isExpanded: true,
-                          value: safeEventId,
-                          dropdownColor: AppColors.primary,
-                          iconEnabledColor: Colors.white,
-                          items: myEvents.map((doc) {
-                            final title = doc.data()['title'] ?? 'Untitled';
-                            return DropdownMenuItem<String>(
-                              value: doc.id,
-                              child: Text(
-                                title,
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (eventId) {
-                            setState(() => analyticsEventId = eventId);
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ── Attendance Table ──
-              Expanded(
-                child: FutureBuilder<DocumentSnapshot>(
-                    future: FirebaseFirestore.instance.collection('events').doc(safeEventId).get(),
-                    builder: (context, eventSnapshot) {
-                      if (!eventSnapshot.hasData) return const Center(child: CircularProgressIndicator());
-                      
-                      final eventData = eventSnapshot.data!.data() as Map<String, dynamic>?;
-                      if (eventData == null) return const SizedBox();
-
-                      // Calculate if event is in the past
-                      DateTime? eDate = safeDate(eventData['date']);
-                      final now = DateTime.now();
-                      bool isPast = eDate != null && eDate.isBefore(DateTime(now.year, now.month, now.day));
-
-                      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                        stream: FirebaseFirestore.instance
-                            .collection('participants')
-                            .where('eventId', isEqualTo: safeEventId)
-                            .where('status', isEqualTo: 'accepted')
-                            .snapshots(),
-                        builder: (context, participantSnapshot) {
-                          if (!participantSnapshot.hasData) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-
-                          final docs = participantSnapshot.data!.docs;
-
-                          if (docs.isEmpty) {
-                            return const Center(
-                              child: Text(
-                                "No accepted participants yet.",
-                                style: TextStyle(color: AppColors.textSecondary),
-                              ),
-                            );
-                          }
-
-                          // Count for summary
-                          final total = docs.length;
-                          final present = docs.where((d) => d.data()['attendance'] == true).length;
-                          final absentOrExpected = total - present;
-
-                          return Column(
-                            children: [
-                              // ── Summary Cards ──
-                              Padding(
-                                padding: EdgeInsets.all(16.w),
-                                child: Row(
-                                  children: [
-                                    _SummaryCard(label: "Total Guests", count: total, color: AppColors.primary),
-                                    SizedBox(width: 10.w),
-                                    _SummaryCard(label: "Checked In", count: present, color: AppColors.success),
-                                    SizedBox(width: 10.w),
-                                    _SummaryCard(
-                                      label: isPast ? "Absent" : "Pending", 
-                                      count: absentOrExpected, 
-                                      color: isPast ? AppColors.error : AppColors.warning
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              // ── Table Header ──
-                              Container(
-                                color: AppColors.primary.withAlpha(25),
-                                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                                child: Row(
-                                  children: [
-                                    SizedBox(
-                                      width: 36.w,
-                                      child: const Text("S.N", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-                                    ),
-                                    const Expanded(
-                                      flex: 3,
-                                      child: Text("Name", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-                                    ),
-                                    const Expanded(
-                                      flex: 4,
-                                      child: Text("Email", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-                                    ),
-                                    SizedBox(
-                                      width: 75.w,
-                                      child: const Text("Status", style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary), textAlign: TextAlign.center),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              Divider(height: 1.h, color: AppColors.border),
-
-                              // ── Table Rows ──
-                              Expanded(
-                                child: ListView.separated(
-                                  itemCount: docs.length,
-                                  separatorBuilder: (_, __) => Divider(height: 1.h, color: AppColors.border),
-                                  itemBuilder: (context, index) {
-                                    final data = docs[index].data();
-                                    final isPresent = data['attendance'] == true;
-
-                                    final attText = isPresent ? "Present" : (isPast ? "Absent" : "Expected");
-                                    final attColorBg = isPresent ? AppColors.success.withAlpha(30) : (isPast ? AppColors.error.withAlpha(30) : AppColors.warning.withAlpha(30));
-                                    final attColorText = isPresent ? AppColors.success : (isPast ? AppColors.error : AppColors.warning);
-
-                                    return Container(
-                                      color: index.isEven ? AppColors.surface : AppColors.background,
-                                      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
-                                      child: Row(
-                                        children: [
-                                          SizedBox(
-                                            width: 36.w,
-                                            child: Text("${index + 1}", style: TextStyle(color: AppColors.textSecondary, fontSize: 13.sp)),
-                                          ),
-                                          Expanded(
-                                            flex: 3,
-                                            child: Text(data['name'] ?? '-', style: TextStyle(fontSize: 13.sp, fontWeight: FontWeight.w500, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-                                          ),
-                                          Expanded(
-                                            flex: 4,
-                                            child: Text(data['email'] ?? '-', style: TextStyle(fontSize: 12.sp, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
-                                          ),
-                                          SizedBox(
-                                            width: 72.w,
-                                            child: Center(
-                                              child: Container(
-                                                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-                                                decoration: BoxDecoration(
-                                                  color: attColorBg,
-                                                  borderRadius: BorderRadius.circular(20.r),
-                                                ),
-                                                child: Text(
-                                                  attText,
-                                                  style: TextStyle(
-                                                    fontSize: 11.sp,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: attColorText,
-                                                  ),
-                                                  textAlign: TextAlign.center,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    }
-                ),
-              ),
-            ],
-          );
-        }
       ),
     );
   }
@@ -728,7 +794,7 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
             .snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          
+
           final data = snapshot.data!.data();
           if (data == null) return const Center(child: Text("No user found"));
 
@@ -740,90 +806,111 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
               title: const Text("Profile"),
               actions: [
                 PopupMenuButton<String>(
-                  onSelected: (value) async {
-                    if (value == 'switch') {
-                      await FirebaseFirestore.instance.collection('users').doc(uid).update({'role': 'participant'});
-                      if (!mounted) return;
-                      Navigator.pushAndRemoveUntil(
-                        context, 
-                        MaterialPageRoute(builder: (_) => const ParticipantPages()), 
-                        (route) => false
-                      );
-                    } else if (value == 'password') {
-                      try {
-                        await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+                    onSelected: (value) async {
+                      if (value == 'switch') {
+                        await FirebaseFirestore.instance.collection('users').doc(uid).update(
+                            {'role': 'participant'});
                         if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Password reset link sent to your email!"), backgroundColor: AppColors.success)
+                        Navigator.pushAndRemoveUntil(
+                            context,
+                            MaterialPageRoute(builder: (_) => const ParticipantPages()),
+                                (route) => false
                         );
-                      } catch (e) {
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("Error: $e"), backgroundColor: AppColors.error)
-                        );
+                      } else if (value == 'password') {
+                        try {
+                          await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text("Password reset link sent to your email!"),
+                                  backgroundColor: AppColors.success)
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Error: $e"), backgroundColor: AppColors.error)
+                          );
+                        }
+                      } else if (value == 'logout') {
+                        _forceLogout();
                       }
-                    } else if (value == 'logout') {
-                      _forceLogout();
+                    },
+                    itemBuilder: (BuildContext context) {
+                      return [
+                        const PopupMenuItem(
+                            value: 'switch',
+                            child: Row(children: [
+                              Icon(Icons.swap_horiz, color: AppColors.primary),
+                              SizedBox(width: 8),
+                              Text("Switch to Participant")
+                            ])
+                        ),
+                        const PopupMenuItem(
+                            value: 'password',
+                            child: Row(children: [
+                              Icon(Icons.lock_reset, color: AppColors.primary),
+                              SizedBox(width: 8),
+                              Text("Change Password")
+                            ])
+                        ),
+                        const PopupMenuItem(
+                            value: 'logout',
+                            child: Row(children: [
+                              Icon(Icons.logout, color: AppColors.error),
+                              SizedBox(width: 8),
+                              Text("Logout", style: TextStyle(color: AppColors.error))
+                            ])
+                        ),
+                      ];
                     }
-                  },
-                  itemBuilder: (BuildContext context) {
-                    return [
-                      const PopupMenuItem(
-                        value: 'switch', 
-                        child: Row(children: [Icon(Icons.swap_horiz, color: AppColors.primary), SizedBox(width: 8), Text("Switch to Participant")])
-                      ),
-                      const PopupMenuItem(
-                        value: 'password', 
-                        child: Row(children: [Icon(Icons.lock_reset, color: AppColors.primary), SizedBox(width: 8), Text("Change Password")])
-                      ),
-                      const PopupMenuItem(
-                        value: 'logout', 
-                        child: Row(children: [Icon(Icons.logout, color: AppColors.error), SizedBox(width: 8), Text("Logout", style: TextStyle(color: AppColors.error))])
-                      ),
-                    ];
-                  }
                 )
               ],
             ),
             body: SingleChildScrollView(
               padding: EdgeInsets.all(24.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Gap(20.h),
-                  CircleAvatar(
-                    backgroundColor: AppColors.secondary,
-                    radius: 48.r,
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : "U",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 36.sp
+              child: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Gap(20.h),
+                    CircleAvatar(
+                      backgroundColor: AppColors.secondary,
+                      radius: 48.r,
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : "U",
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                            fontSize: 36.sp
+                        ),
                       ),
                     ),
-                  ),
-                  Gap(24.h),
-                  Text(
-                    name,
-                    style: TextStyle(
-                      fontSize: 24.sp,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+                    Gap(24.h),
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontSize: 24.sp,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                  Gap(8.h),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withAlpha(20),
-                      borderRadius: BorderRadius.circular(16.r),
+                    Gap(8.h),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 4.h),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withAlpha(20),
+                        borderRadius: BorderRadius.circular(16.r),
+                      ),
+                      child: Text("ORGANIZER", style: TextStyle(color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12.sp)),
                     ),
-                    child: Text("ORGANIZER", style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12.sp)),
-                  ),
-                  Gap(16.h),
-                  Text(email, style: const TextStyle(color: AppColors.textSecondary, fontSize: 16)),
-                ],
+                    Gap(16.h),
+                    Text(email,
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 16)),
+                  ],
+                ),
               ),
             ),
           );
@@ -866,7 +953,8 @@ class _SummaryCard extends StatelessWidget {
               ),
             ),
             SizedBox(height: 4.h),
-            Text(label, style: TextStyle(fontSize: 12.sp, color: color, fontWeight: FontWeight.w600)),
+            Text(label,
+                style: TextStyle(fontSize: 12.sp, color: color, fontWeight: FontWeight.w600)),
           ],
         ),
       ),

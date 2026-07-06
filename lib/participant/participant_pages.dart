@@ -52,16 +52,53 @@ class _ParticipantPagesState extends State<ParticipantPages>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
+    // Auto-link any hanging event invites tied to this email if they missed case matching initially
+    _forceLinkInvites();
+
     // Listen for Real-Time Account Suspensions
     _banListener = FirebaseFirestore.instance
         .collection('users')
         .doc(authService.currentUserId)
         .snapshots()
         .listen((doc) {
-          if (doc.exists && doc.data()?['disabled'] == true) {
-            _forceLogout();
+      if (doc.exists && doc.data()?['disabled'] == true) {
+        _forceLogout();
+      }
+    });
+  }
+
+  Future<void> _forceLinkInvites() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && user.email != null) {
+        final emailLower = user.email!.trim().toLowerCase();
+        final emailExact = user.email!.trim();
+
+        final batch = FirebaseFirestore.instance.batch();
+        bool needsCommit = false;
+
+        for (String e in {emailLower, emailExact}) {
+          final query = await FirebaseFirestore.instance
+              .collection('participants')
+              .where('email', isEqualTo: e)
+              .where('userId', isEqualTo: '')
+              .where('status', isEqualTo: 'invited')
+              .get();
+
+          for (var doc in query.docs) {
+            batch.update(doc.reference, {'userId': user.uid});
+            needsCommit = true;
           }
-        });
+        }
+
+        if (needsCommit) {
+          await batch.commit();
+          if (mounted) setState(() {});
+        }
+      }
+    } catch (e) {
+      debugPrint("Force link invites error: $e");
+    }
   }
 
   @override
@@ -78,7 +115,7 @@ class _ParticipantPagesState extends State<ParticipantPages>
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const LoginPage()),
-        (route) => false,
+            (route) => false,
       );
     }
   }
@@ -185,13 +222,13 @@ class _ParticipantPagesState extends State<ParticipantPages>
                 stream: FirebaseFirestore.instance
                     .collection("notifications")
                     .where(
-                      'targetUserId',
-                      isEqualTo: FirebaseAuth.instance.currentUser?.uid,
-                    )
+                  'targetUserId',
+                  isEqualTo: FirebaseAuth.instance.currentUser?.uid,
+                )
                     .where(
-                      'targetRole',
-                      isEqualTo: 'participant',
-                    ) // STRICT ROLE FILTER
+                  'targetRole',
+                  isEqualTo: 'participant',
+                ) // STRICT ROLE FILTER
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
@@ -234,70 +271,70 @@ class _ParticipantPagesState extends State<ParticipantPages>
                                   width: double.maxFinite,
                                   child: docs.isEmpty
                                       ? const Padding(
-                                          padding: EdgeInsets.all(16.0),
-                                          child: Text("No notifications yet."),
-                                        )
+                                    padding: EdgeInsets.all(16.0),
+                                    child: Text("No notifications yet."),
+                                  )
                                       : ListView(
-                                          shrinkWrap: true,
-                                          children: docs.map((doc) {
-                                            final data =
-                                                doc.data()
-                                                    as Map<String, dynamic>;
-                                            return ListTile(
-                                              title: Text(
-                                                data["title"] ?? "",
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              subtitle: Text(
-                                                data["body"] ?? "",
-                                              ),
-                                              tileColor: data["isRead"] == false
-                                                  ? AppColors.primary.withAlpha(
-                                                      20,
-                                                    )
-                                                  : null,
-                                              onTap: () async {
-                                                await FirebaseFirestore.instance
-                                                    .collection("notifications")
-                                                    .doc(doc.id)
-                                                    .update({"isRead": true});
-
-                                                final eventId = data["eventId"];
-                                                if (eventId == null) return;
-
-                                                final eventDoc =
-                                                    await FirebaseFirestore
-                                                        .instance
-                                                        .collection("events")
-                                                        .doc(eventId)
-                                                        .get();
-                                                if (!eventDoc.exists ||
-                                                    !context.mounted)
-                                                  return;
-
-                                                final eventData = eventDoc
-                                                    .data()!;
-
-                                                Navigator.pop(context);
-                                                Navigator.push(
-                                                  context,
-                                                  MaterialPageRoute(
-                                                    builder: (_) =>
-                                                        EventDetailsPage(
-                                                          eventData: eventData,
-                                                          eventDate: safeDate(
-                                                            eventData['date'],
-                                                          ),
-                                                          eventId: eventId,
-                                                        ),
-                                                  ),
-                                                );
-                                              },
-                                            );
-                                          }).toList(),
+                                    shrinkWrap: true,
+                                    children: docs.map((doc) {
+                                      final data =
+                                      doc.data()
+                                      as Map<String, dynamic>;
+                                      return ListTile(
+                                        title: Text(
+                                          data["title"] ?? "",
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
+                                        subtitle: Text(
+                                          data["body"] ?? "",
+                                        ),
+                                        tileColor: data["isRead"] == false
+                                            ? AppColors.primary.withAlpha(
+                                          20,
+                                        )
+                                            : null,
+                                        onTap: () async {
+                                          await FirebaseFirestore.instance
+                                              .collection("notifications")
+                                              .doc(doc.id)
+                                              .update({"isRead": true});
+
+                                          final eventId = data["eventId"];
+                                          if (eventId == null) return;
+
+                                          final eventDoc =
+                                          await FirebaseFirestore
+                                              .instance
+                                              .collection("events")
+                                              .doc(eventId)
+                                              .get();
+                                          if (!eventDoc.exists ||
+                                              !context.mounted)
+                                            return;
+
+                                          final eventData = eventDoc
+                                              .data()!;
+
+                                          Navigator.pop(context);
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  EventDetailsPage(
+                                                    eventData: eventData,
+                                                    eventDate: safeDate(
+                                                      eventData['date'],
+                                                    ),
+                                                    eventId: eventId,
+                                                  ),
+                                            ),
+                                          );
+                                        },
+                                      );
+                                    }).toList(),
+                                  ),
                                 ),
                               );
                             },
@@ -384,11 +421,11 @@ class _ParticipantPagesState extends State<ParticipantPages>
 
               final matchTitle =
                   searchText.isEmpty ||
-                  title.contains(searchText) ||
-                  venue.contains(searchText);
+                      title.contains(searchText) ||
+                      venue.contains(searchText);
               final matchLocation =
                   selectedLocation == "All" ||
-                  venue.contains(selectedLocation.toLowerCase());
+                      venue.contains(selectedLocation.toLowerCase());
 
               return matchTitle && matchLocation;
             }).toList();
@@ -402,20 +439,21 @@ class _ParticipantPagesState extends State<ParticipantPages>
                       Expanded(
                         child: TextField(
                           controller: searchController,
-                          onChanged: (value) => setState(
-                            () => searchText = value.trim().toLowerCase(),
-                          ),
+                          onChanged: (value) =>
+                              setState(
+                                    () => searchText = value.trim().toLowerCase(),
+                              ),
                           decoration: InputDecoration(
                             hintText: "Search Explore",
                             prefixIcon: const Icon(Icons.search),
                             suffixIcon: searchController.text.isNotEmpty
                                 ? IconButton(
-                                    onPressed: () {
-                                      searchController.clear();
-                                      setState(() => searchText = "");
-                                    },
-                                    icon: const Icon(Icons.clear),
-                                  )
+                              onPressed: () {
+                                searchController.clear();
+                                setState(() => searchText = "");
+                              },
+                              icon: const Icon(Icons.clear),
+                            )
                                 : null,
                             contentPadding: EdgeInsets.symmetric(
                               vertical: 14.h,
@@ -439,86 +477,87 @@ class _ParticipantPagesState extends State<ParticipantPages>
                 Expanded(
                   child: filteredDocs.isEmpty
                       ? const Center(
-                          child: Text("No public events to explore right now."),
-                        )
+                    child: Text("No public events to explore right now."),
+                  )
                       : ListView.builder(
-                          padding: EdgeInsets.symmetric(horizontal: 16.w),
-                          itemCount: filteredDocs.length,
-                          itemBuilder: (context, index) {
-                            final doc = filteredDocs[index];
-                            final data = doc.data();
-                            return Card(
-                              margin: EdgeInsets.only(bottom: 12.h),
-                              child: ListTile(
-                                contentPadding: EdgeInsets.symmetric(
-                                  horizontal: 16.w,
-                                  vertical: 8.h,
-                                ),
-                                leading: CircleAvatar(
-                                  backgroundColor: AppColors.secondary
-                                      .withAlpha(30),
-                                  child: const Icon(
-                                    Icons.event_available,
-                                    color: AppColors.secondary,
-                                  ),
-                                ),
-                                title: Text(
-                                  data['title'] ?? '',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Gap(4.h),
-                                    Text(
-                                      [data['venue'] ?? '']
-                                          .where(
-                                            (element) => element.isNotEmpty,
-                                          )
-                                          .join(' • '),
-                                    ),
-                                    if (data['description'] != null &&
-                                        data['description']
-                                            .toString()
-                                            .isNotEmpty) ...[
-                                      Gap(4.h),
-                                      Text(
-                                        data['description'],
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          fontSize: 12.sp,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                trailing: const Text(
-                                  "Apply",
+                    padding: EdgeInsets.symmetric(horizontal: 16.w),
+                    itemCount: filteredDocs.length,
+                    itemBuilder: (context, index) {
+                      final doc = filteredDocs[index];
+                      final data = doc.data();
+                      return Card(
+                        margin: EdgeInsets.only(bottom: 12.h),
+                        child: ListTile(
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16.w,
+                            vertical: 8.h,
+                          ),
+                          leading: CircleAvatar(
+                            backgroundColor: AppColors.secondary
+                                .withAlpha(30),
+                            child: const Icon(
+                              Icons.event_available,
+                              color: AppColors.secondary,
+                            ),
+                          ),
+                          title: Text(
+                            data['title'] ?? '',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Gap(4.h),
+                              Text(
+                                [data['venue'] ?? '']
+                                    .where(
+                                      (element) => element.isNotEmpty,
+                                )
+                                    .join(' • '),
+                              ),
+                              if (data['description'] != null &&
+                                  data['description']
+                                      .toString()
+                                      .isNotEmpty) ...[
+                                Gap(4.h),
+                                Text(
+                                  data['description'],
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12.sp,
+                                    color: AppColors.textSecondary,
                                   ),
                                 ),
-                                onTap: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => EventDetailsPage(
-                                        eventData: data,
-                                        eventDate: safeDate(data['date']),
-                                        eventId: doc.id,
-                                      ),
+                              ],
+                            ],
+                          ),
+                          trailing: const Text(
+                            "Apply",
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    EventDetailsPage(
+                                      eventData: data,
+                                      eventDate: safeDate(data['date']),
+                                      eventId: doc.id,
                                     ),
-                                  );
-                                },
                               ),
                             );
                           },
                         ),
+                      );
+                    },
+                  ),
                 ),
               ],
             );
@@ -568,7 +607,7 @@ class _ParticipantPagesState extends State<ParticipantPages>
           DateTime? eventDate = safeDate(data['eventDate']);
           bool isPast =
               eventDate != null &&
-              eventDate.isBefore(DateTime(now.year, now.month, now.day));
+                  eventDate.isBefore(DateTime(now.year, now.month, now.day));
 
           final Map<String, dynamic> item = {
             'docId': doc.id,
@@ -647,11 +686,9 @@ class _ParticipantPagesState extends State<ParticipantPages>
     );
   }
 
-  Widget _buildSection(
-    String title,
-    List<Map<String, dynamic>> items,
-    Color color,
-  ) {
+  Widget _buildSection(String title,
+      List<Map<String, dynamic>> items,
+      Color color,) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -723,11 +760,12 @@ class _ParticipantPagesState extends State<ParticipantPages>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => EventDetailsPage(
-                      eventData: eventDoc.data()!,
-                      eventDate: safeDate(eventDoc.data()!['date']),
-                      eventId: item['eventId'],
-                    ),
+                    builder: (_) =>
+                        EventDetailsPage(
+                          eventData: eventDoc.data()!,
+                          eventDate: safeDate(eventDoc.data()!['date']),
+                          eventId: item['eventId'],
+                        ),
                   ),
                 );
               },
@@ -760,7 +798,7 @@ class _ParticipantPagesState extends State<ParticipantPages>
             final now = DateTime.now();
             bool isPast =
                 eDate != null &&
-                eDate.isBefore(DateTime(now.year, now.month, now.day));
+                    eDate.isBefore(DateTime(now.year, now.month, now.day));
             bool attended = data['attendance'] == true;
 
             // Hide the QR if the event has ended and they didn't check in
@@ -779,7 +817,10 @@ class _ParticipantPagesState extends State<ParticipantPages>
                 padding: EdgeInsets.all(24.w),
                 child: Text(
                   "My Tickets",
-                  style: Theme.of(context).textTheme.headlineMedium,
+                  style: Theme
+                      .of(context)
+                      .textTheme
+                      .headlineMedium,
                 ),
               ),
               Expanded(
@@ -812,10 +853,11 @@ class _ParticipantPagesState extends State<ParticipantPages>
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => QRPage(
-                                guestId: data['guestId'],
-                                eventId: data['eventId'],
-                              ),
+                              builder: (_) =>
+                                  QRPage(
+                                    guestId: data['guestId'],
+                                    eventId: data['eventId'],
+                                  ),
                             ),
                           );
                         },
@@ -864,7 +906,7 @@ class _ParticipantPagesState extends State<ParticipantPages>
                       Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(builder: (_) => const EventPage()),
-                        (route) => false,
+                            (route) => false,
                       );
                     } else if (value == 'password') {
                       try {
@@ -935,59 +977,62 @@ class _ParticipantPagesState extends State<ParticipantPages>
             ),
             body: SingleChildScrollView(
               padding: EdgeInsets.all(24.w),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Gap(20.h),
-                  CircleAvatar(
-                    backgroundColor: AppColors.secondary,
-                    radius: 48.r,
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : "U",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        fontSize: 36.sp,
+              child: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Gap(20.h),
+                    CircleAvatar(
+                      backgroundColor: AppColors.secondary,
+                      radius: 48.r,
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : "U",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 36.sp,
+                        ),
                       ),
                     ),
-                  ),
-                  Gap(24.h),
-                  Text(
-                    name,
-                    style: TextStyle(
-                      fontSize: 24.sp,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  Gap(8.h),
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 12.w,
-                      vertical: 4.h,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.secondary.withAlpha(20),
-                      borderRadius: BorderRadius.circular(16.r),
-                    ),
-                    child: Text(
-                      "PARTICIPANT",
+                    Gap(24.h),
+                    Text(
+                      name,
                       style: TextStyle(
-                        color: AppColors.secondary,
+                        fontSize: 24.sp,
                         fontWeight: FontWeight.bold,
-                        fontSize: 12.sp,
+                        color: AppColors.textPrimary,
                       ),
                     ),
-                  ),
-                  Gap(16.h),
-                  Text(
-                    email,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 16,
+                    Gap(8.h),
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 12.w,
+                        vertical: 4.h,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondary.withAlpha(20),
+                        borderRadius: BorderRadius.circular(16.r),
+                      ),
+                      child: Text(
+                        "PARTICIPANT",
+                        style: TextStyle(
+                          color: AppColors.secondary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12.sp,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                    Gap(16.h),
+                    Text(
+                      email,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
