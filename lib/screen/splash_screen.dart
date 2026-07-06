@@ -11,6 +11,7 @@ import 'package:smart_event_app/auth/login_page.dart';
 import 'package:smart_event_app/auth/role_selection_page.dart';
 import 'package:smart_event_app/event/event_page.dart';
 import 'package:smart_event_app/participant/participant_pages.dart';
+import 'package:smart_event_app/theme/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -113,10 +114,8 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = [Colors.blue, Colors.purple, Colors.black];
-
     return Scaffold(
-      backgroundColor: Colors.brown.shade50,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: Center(
           child: Column(
@@ -130,13 +129,13 @@ class _SplashScreenState extends State<SplashScreen> {
                   borderRadius: BorderRadius.circular(20.r),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black,
+                      color: Colors.black.withAlpha(50),
                       blurRadius: 15.r,
                       offset: Offset(0.w, 8.h),
                     ),
                   ],
                   gradient: const LinearGradient(
-                    colors: [Colors.yellow, Colors.red],
+                    colors: [AppColors.primary, AppColors.secondary],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -165,7 +164,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       fontSize: 24.r,
                       fontWeight: FontWeight.bold,
                     ),
-                    colors: textColor,
+                    colors: [AppColors.primary, AppColors.secondary, AppColors.textPrimary],
                   ),
                 ],
                 isRepeatingAnimation: true,

@@ -263,19 +263,30 @@ class ParticipantService {
 
     for (var guest in guests) {
       final email = guest['email']!.trim();
+      final cleanEmail = email.toLowerCase();
       final name = guest['name']!.trim();
       final department = guest['department'] ?? '';
 
       final inviteeDocId =
-          "INVITE_${email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}_$eventId";
+          "INVITE_${cleanEmail.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}_$eventId";
       final ref = _db.collection('participants').doc(inviteeDocId);
 
       final guestId = generateGuestId();
-      final userQuery = await _db
+
+      // Check for user robustly to avoid case-mismatch bugs
+      var userQuery = await _db
           .collection('users')
-          .where('email', isEqualTo: email)
+          .where('email', isEqualTo: cleanEmail)
           .limit(1)
           .get();
+
+      if (userQuery.docs.isEmpty && cleanEmail != email) {
+        userQuery = await _db
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
+      }
 
       String assignedUserId = '';
       if (userQuery.docs.isNotEmpty) {
@@ -285,7 +296,7 @@ class ParticipantService {
       batch.set(ref, {
         'userId': assignedUserId,
         'name': name,
-        'email': email,
+        'email': cleanEmail, // Safely save as lowercase for easier linking
         'department': department, // Save specific corporate department mapping
         'eventId': eventId,
         'guestId': guestId,
@@ -329,6 +340,7 @@ class ParticipantService {
     final eventData = eventDoc.data() ?? {};
 
     final cleanEmail = email.trim().toLowerCase();
+    final exactEmail = email.trim();
     final cleanName = name.trim();
 
     final inviteeDocId =
@@ -342,11 +354,21 @@ class ParticipantService {
 
     final batch = _db.batch();
     final guestId = generateGuestId();
-    final userQuery = await _db
+
+    // Fallback checks for user to ensure invitation links correctly regardless of casing
+    var userQuery = await _db
         .collection('users')
         .where('email', isEqualTo: cleanEmail)
         .limit(1)
         .get();
+
+    if (userQuery.docs.isEmpty && cleanEmail != exactEmail) {
+      userQuery = await _db
+          .collection('users')
+          .where('email', isEqualTo: exactEmail)
+          .limit(1)
+          .get();
+    }
 
     String assignedUserId = '';
     if (userQuery.docs.isNotEmpty) {
@@ -356,7 +378,7 @@ class ParticipantService {
     batch.set(ref, {
       'userId': assignedUserId,
       'name': cleanName,
-      'email': cleanEmail,
+      'email': cleanEmail, // Safely save as lowercase for easier linking
       'eventId': eventId,
       'guestId': guestId,
       'attendance': false,
@@ -370,6 +392,34 @@ class ParticipantService {
 
     await batch.commit();
 
+    // Trigger push notification to the single guest immediately if they exist in DB
+    if (assignedUserId.isNotEmpty) {
+      await _db.collection('notifications').add({
+        'title': 'You have been invited!',
+        'body': 'The organizer has invited you to $eventTitle.',
+        'time': FieldValue.serverTimestamp(),
+        'isRead': false,
+        'eventId': eventId,
+        'targetUserId': assignedUserId,
+        'targetRole': 'participant',
+      });
+
+      final userDataDoc = await _db.collection('users').doc(assignedUserId).get();
+      if (userDataDoc.exists) {
+        final token = userDataDoc.data()?['fcmToken'];
+        if (token != null && token
+            .toString()
+            .isNotEmpty) {
+          await sendPushNotification(
+            targetFcmToken: token,
+            title: 'You have been invited!',
+            body: 'The organizer has invited you to $eventTitle.',
+            eventId: eventId,
+          );
+        }
+      }
+    }
+
     if (sendEmail) {
       final eDate = _formatDate(eventData['date']);
       final eTime = eventData['time'] ?? 'TBD';
@@ -379,7 +429,7 @@ class ParticipantService {
 
       await _sendEmailJs(
         eventId: eventId,
-        toEmail: cleanEmail,
+        toEmail: exactEmail,
         guestName: cleanName,
         eventTitle: eventTitle,
         eventDate: eDate,
@@ -444,7 +494,7 @@ class ParticipantService {
           ? 'Invitation Accepted'
           : 'Invitation Declined',
       'body':
-          '${data['name']} has $status your invitation to ${data['eventTitle']}.',
+      '${data['name']} has $status your invitation to ${data['eventTitle']}.',
       'time': FieldValue.serverTimestamp(),
       'isRead': false,
       'eventId': data['eventId'],
@@ -454,8 +504,7 @@ class ParticipantService {
   }
 
   // MARK ATTENDANCE USING ONLY guestId (QR USE)
-  Future<void> markAttendanceByGuestId(
-    String guestId, {
+  Future<void> markAttendanceByGuestId(String guestId, {
     String? currentEventId,
   }) async {
     final query = await _db
@@ -529,7 +578,8 @@ class ParticipantService {
         .collection('participants')
         .doc(_docId(userId, eventId))
         .get();
-    if (stdDoc.exists) return stdDoc.data()?..addAll({'docId': stdDoc.id});
+    if (stdDoc.exists) return stdDoc.data()
+      ?..addAll({'docId': stdDoc.id});
 
     final query = await _db
         .collection('participants')
@@ -539,7 +589,8 @@ class ParticipantService {
         .get();
 
     if (query.docs.isNotEmpty) {
-      return query.docs.first.data()..addAll({'docId': query.docs.first.id});
+      return query.docs.first.data()
+        ..addAll({'docId': query.docs.first.id});
     }
 
     return null;

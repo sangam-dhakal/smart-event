@@ -57,18 +57,21 @@ class FeedbackListPage extends StatelessWidget {
                 children: [
                   Icon(Icons.speaker_notes_off, size: 72.sp, color: AppColors.border),
                   Gap(16.h),
-                  Text("No feedback yet.", style: TextStyle(fontSize: 18.sp, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+                  Text("No feedback yet.", style: TextStyle(fontSize: 18.sp,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.bold)),
                   Gap(8.h),
-                  Text("Participants must attend the event to leave a review.", style: TextStyle(fontSize: 13.sp, color: AppColors.textSecondary)),
+                  Text("Participants must attend the event to leave a review.",
+                      style: TextStyle(fontSize: 13.sp, color: AppColors.textSecondary)),
                 ],
               ),
             );
           }
 
-          // Calculate Average Rating
+          // Calculate Average Rating Safely
           double totalRating = 0;
           for (var doc in docs) {
-            totalRating += (doc.data()['rating'] as num).toDouble();
+            totalRating += (doc.data()['rating'] as num?)?.toDouble() ?? 0;
           }
           final double avgRating = totalRating / docs.length;
 
@@ -85,7 +88,9 @@ class FeedbackListPage extends StatelessWidget {
                       children: [
                         Text(
                           avgRating.toStringAsFixed(1),
-                          style: TextStyle(fontSize: 48.sp, fontWeight: FontWeight.bold, color: AppColors.primary),
+                          style: TextStyle(fontSize: 48.sp,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary),
                         ),
                         Row(
                           children: List.generate(5, (index) {
@@ -97,7 +102,8 @@ class FeedbackListPage extends StatelessWidget {
                           }),
                         ),
                         Gap(8.h),
-                        Text("${docs.length} Reviews", style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
+                        Text("${docs.length} Reviews", style: const TextStyle(color: AppColors
+                            .textSecondary, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ],
@@ -115,7 +121,7 @@ class FeedbackListPage extends StatelessWidget {
                     final review = data['review'] ?? '';
                     final rating = (data['rating'] as num).toInt();
                     final timestamp = data['timestamp'] as Timestamp?;
-                    
+
                     String dateStr = '';
                     if (timestamp != null) {
                       final d = timestamp.toDate();
@@ -137,26 +143,33 @@ class FeedbackListPage extends StatelessWidget {
                                     CircleAvatar(
                                       radius: 16.r,
                                       backgroundColor: AppColors.primary.withAlpha(30),
-                                      child: Text(name[0].toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                                      child: Text(name[0].toUpperCase(), style: const TextStyle(
+                                          fontWeight: FontWeight.bold, color: AppColors.primary)),
                                     ),
                                     Gap(12.w),
-                                    Text(name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16.sp, color: AppColors.textPrimary)),
+                                    Text(name, style: TextStyle(fontWeight: FontWeight.bold,
+                                        fontSize: 16.sp,
+                                        color: AppColors.textPrimary)),
                                   ],
                                 ),
-                                Text(dateStr, style: TextStyle(color: AppColors.textSecondary, fontSize: 12.sp, fontWeight: FontWeight.w600)),
+                                Text(dateStr, style: TextStyle(color: AppColors.textSecondary,
+                                    fontSize: 12.sp,
+                                    fontWeight: FontWeight.w600)),
                               ],
                             ),
                             Gap(12.h),
                             Row(
-                              children: List.generate(5, (i) => Icon(
-                                i < rating ? Icons.star : Icons.star_border,
-                                size: 18.sp,
-                                color: AppColors.accent,
-                              )),
+                              children: List.generate(5, (i) =>
+                                  Icon(
+                                    i < rating ? Icons.star : Icons.star_border,
+                                    size: 18.sp,
+                                    color: AppColors.accent,
+                                  )),
                             ),
                             if (review.isNotEmpty) ...[
                               Gap(12.h),
-                              Text(review, style: TextStyle(fontSize: 14.sp, color: AppColors.textPrimary, height: 1.4)),
+                              Text(review, style: TextStyle(
+                                  fontSize: 14.sp, color: AppColors.textPrimary, height: 1.4)),
                             ]
                           ],
                         ),

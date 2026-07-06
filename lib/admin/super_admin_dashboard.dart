@@ -178,75 +178,92 @@ class _UsersTabState extends State<_UsersTab> {
         }
 
         final users = snapshot.data ?? [];
-        if (users.isEmpty) return const Center(child: Text("No users found."));
+        if (users.isEmpty) return RefreshIndicator(
+            onRefresh: () async {
+              _fetchUsers();
+              await _usersFuture;
+            },
+            child: ListView(
+                children: [
+                  SizedBox(height: 300.h),
+                  const Center(child: Text("No users found. Pull to refresh.")),
+                ]
+            )
+        );
 
-        return ListView.builder(
-          padding: EdgeInsets.all(16.w),
-          itemCount: users.length,
-          itemBuilder: (context, index) {
-            final user = users[index];
-            final uid = user['uid'];
-            final email = user['email'] ?? 'No email associated';
-            final name = user['displayName'] ?? 'Unknown User';
-            final role = (user['role'] ?? 'unknown').toString().toUpperCase();
-            final disabled = user['disabled'] == true;
+        return RefreshIndicator(
+          onRefresh: () async {
+            _fetchUsers();
+            await _usersFuture;
+          },
+          child: ListView.builder(
+            padding: EdgeInsets.all(16.w),
+            itemCount: users.length,
+            itemBuilder: (context, index) {
+              final user = users[index];
+              final uid = user['uid'];
+              final email = user['email'] ?? 'No email associated';
+              final name = user['displayName'] ?? 'Unknown User';
+              final role = (user['role'] ?? 'unknown').toString().toUpperCase();
+              final disabled = user['disabled'] == true;
 
-            final isMe = uid == currentUid;
-            final isSuperAdminRole = role == 'SUPER_ADMIN';
+              final isMe = uid == currentUid;
+              final isSuperAdminRole = role == 'SUPER_ADMIN';
 
-            return Card(
-              margin: EdgeInsets.only(bottom: 12.h),
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: disabled ? Colors.red.shade100 : Colors.green.shade100,
-                  child: Icon(
-                    disabled ? Icons.person_off : Icons.person,
-                    color: disabled ? Colors.red : Colors.green,
+              return Card(
+                margin: EdgeInsets.only(bottom: 12.h),
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.r)),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: disabled ? Colors.red.shade100 : Colors.green.shade100,
+                    child: Icon(
+                      disabled ? Icons.person_off : Icons.person,
+                      color: disabled ? Colors.red : Colors.green,
+                    ),
+                  ),
+                  title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text("$email\nRole: $role"),
+                  isThreeLine: true,
+
+                  // Hide the toggle switch completely if they are the Super Admin or Themselves
+                  trailing: (isMe || isSuperAdminRole)
+                      ? Chip(label: Text(isSuperAdminRole ? "ADMIN" : "YOU",
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)))
+                      : Switch(
+                    value: !disabled,
+                    activeColor: Colors.green,
+                    inactiveThumbColor: Colors.red,
+                    inactiveTrackColor: Colors.red.shade200,
+                    onChanged: (val) async {
+                      // The value is true if we want them ENABLED, false if DISABLED.
+                      final disableAction = !val;
+                      try {
+                        await _service.toggleUserStatus(uid, disableAction);
+                        _fetchUsers(); // Refresh silently
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(disableAction ? "User Suspended!" : "User Activated!"),
+                              backgroundColor: disableAction ? Colors.red : Colors.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Failed to alter user status."),
+                                backgroundColor: Colors.red),
+                          );
+                        }
+                      }
+                    },
                   ),
                 ),
-                title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text("$email\nRole: $role"),
-                isThreeLine: true,
-
-                // Hide the toggle switch completely if they are the Super Admin or Themselves
-                trailing: (isMe || isSuperAdminRole)
-                    ? Chip(label: Text(isSuperAdminRole ? "ADMIN" : "YOU",
-                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)))
-                    : Switch(
-                  value: !disabled,
-                  activeColor: Colors.green,
-                  inactiveThumbColor: Colors.red,
-                  inactiveTrackColor: Colors.red.shade200,
-                  onChanged: (val) async {
-                    // The value is true if we want them ENABLED, false if DISABLED.
-                    final disableAction = !val;
-                    try {
-                      await _service.toggleUserStatus(uid, disableAction);
-                      _fetchUsers(); // Refresh silently
-
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(disableAction ? "User Suspended!" : "User Activated!"),
-                            backgroundColor: disableAction ? Colors.red : Colors.green,
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Failed to alter user status."),
-                              backgroundColor: Colors.red),
-                        );
-                      }
-                    }
-                  },
-                ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );

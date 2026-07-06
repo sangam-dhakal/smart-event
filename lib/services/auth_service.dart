@@ -18,24 +18,29 @@ class AuthService {
   /// Internal Method to link auto-generated CSV invitations to a newly logged-in user
   Future<void> _linkPendingInvitations(User user) async {
     try {
-      final email = user.email;
-      if (email == null || email.isEmpty) return;
+      final emailExact = user.email?.trim();
+      final emailLower = user.email?.trim().toLowerCase();
 
-      final query = await _db
-          .collection('participants')
-          .where('email', isEqualTo: email)
-          .where('userId', isEqualTo: '')
-          .where('status', isEqualTo: 'invited')
-          .get();
+      if (emailExact == null || emailExact.isEmpty) return;
 
-      if (query.docs.isNotEmpty) {
-        final batch = _db.batch();
-        String? fcmToken;
-        try {
-          fcmToken = await FirebaseMessaging.instance.getToken();
-        } catch (e) {
-          debugPrint("FCM Fetch Failed During Linking: $e");
-        }
+      final batch = _db.batch();
+      String? fcmToken;
+      try {
+        fcmToken = await FirebaseMessaging.instance.getToken();
+      } catch (e) {
+        debugPrint("FCM Fetch Failed During Linking: $e");
+      }
+
+      bool needsCommit = false;
+
+      // Checking both precise case and lowercase guarantees invites don't get lost
+      for (String e in {emailLower!, emailExact}) {
+        final query = await _db
+            .collection('participants')
+            .where('email', isEqualTo: e)
+            .where('userId', isEqualTo: '')
+            .where('status', isEqualTo: 'invited')
+            .get();
 
         for (var doc in query.docs) {
           batch.update(doc.reference, {
@@ -43,9 +48,12 @@ class AuthService {
             // Explicitly maintaining the status as 'invited' so they can manually accept
             if (fcmToken != null) 'fcmToken': fcmToken,
           });
+          needsCommit = true;
         }
-        await batch.commit();
+      }
 
+      if (needsCommit) {
+        await batch.commit();
         try {
           await FirebaseMessaging.instance.subscribeToTopic("participants");
         } catch (_) {}
@@ -56,16 +64,15 @@ class AuthService {
   }
 
   /// Registers a user using traditional Email/Password architecture
-  Future<void> register(
-    String name,
-    String email,
-    String password,
-    String confirm,
-    String role, {
-    String? orgName,
-    String? department,
-    String? location,
-  }) async {
+  Future<void> register(String name,
+      String email,
+      String password,
+      String confirm,
+      String role, {
+        String? orgName,
+        String? department,
+        String? location,
+      }) async {
     final user = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
       password: password,
