@@ -392,6 +392,34 @@ class ParticipantService {
 
     await batch.commit();
 
+    // Trigger push notification to the single guest immediately if they exist in DB
+    if (assignedUserId.isNotEmpty) {
+      await _db.collection('notifications').add({
+        'title': 'You have been invited!',
+        'body': 'The organizer has invited you to $eventTitle.',
+        'time': FieldValue.serverTimestamp(),
+        'isRead': false,
+        'eventId': eventId,
+        'targetUserId': assignedUserId,
+        'targetRole': 'participant',
+      });
+
+      final userDataDoc = await _db.collection('users').doc(assignedUserId).get();
+      if (userDataDoc.exists) {
+        final token = userDataDoc.data()?['fcmToken'];
+        if (token != null && token
+            .toString()
+            .isNotEmpty) {
+          await sendPushNotification(
+            targetFcmToken: token,
+            title: 'You have been invited!',
+            body: 'The organizer has invited you to $eventTitle.',
+            eventId: eventId,
+          );
+        }
+      }
+    }
+
     if (sendEmail) {
       final eDate = _formatDate(eventData['date']);
       final eTime = eventData['time'] ?? 'TBD';

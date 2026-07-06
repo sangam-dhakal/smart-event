@@ -732,43 +732,67 @@ class _ParticipantPagesState extends State<ParticipantPages>
               borderRadius: BorderRadius.circular(12.r),
               side: BorderSide(color: color.withAlpha(100), width: 1.5),
             ),
-            child: ListTile(
-              leading: Icon(icon, color: color),
-              title: Text(
-                item['title'],
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              subtitle: Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 12.sp,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              trailing: const Icon(
-                Icons.arrow_forward_ios,
-                size: 14,
-                color: AppColors.textSecondary,
-              ),
-              onTap: () async {
-                final eventDoc = await FirebaseFirestore.instance
-                    .collection('events')
-                    .doc(item['eventId'])
-                    .get();
-                if (!eventDoc.exists || !mounted) return;
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        EventDetailsPage(
-                          eventData: eventDoc.data()!,
-                          eventDate: safeDate(eventDoc.data()!['date']),
-                          eventId: item['eventId'],
-                        ),
+            child: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              future: FirebaseFirestore.instance.collection('events').doc(item['eventId']).get(),
+              builder: (context, snapshot) {
+                String desc = "";
+                if (snapshot.hasData && snapshot.data!.exists) {
+                  desc = snapshot.data!.data()?['description'] ?? "";
+                }
+                
+                return ListTile(
+                  leading: Icon(icon, color: color),
+                  title: Text(
+                    item['title'],
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      if (desc.isNotEmpty) ...[
+                        Gap(4.h),
+                        Text(
+                          desc,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12.sp, color: AppColors.textSecondary),
+                        ),
+                      ]
+                    ],
+                  ),
+                  trailing: const Icon(
+                    Icons.arrow_forward_ios,
+                    size: 14,
+                    color: AppColors.textSecondary,
+                  ),
+                  onTap: () async {
+                    final eventDoc = await FirebaseFirestore.instance
+                        .collection('events')
+                        .doc(item['eventId'])
+                        .get();
+                    if (!eventDoc.exists || !mounted) return;
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            EventDetailsPage(
+                              eventData: eventDoc.data()!,
+                              eventDate: safeDate(eventDoc.data()!['date']),
+                              eventId: item['eventId'],
+                            ),
+                      ),
+                    );
+                  },
                 );
-              },
+              }
             ),
           );
         }).toList(),
@@ -890,6 +914,9 @@ class _ParticipantPagesState extends State<ParticipantPages>
 
           final name = data['name'] ?? "User";
           final email = data['email'] ?? "No Email";
+          
+          final user = FirebaseAuth.instance.currentUser;
+          bool isEmailUser = user?.providerData.any((p) => p.providerId == 'password') ?? false;
 
           return Scaffold(
             appBar: AppBar(
@@ -947,16 +974,17 @@ class _ParticipantPagesState extends State<ParticipantPages>
                           ],
                         ),
                       ),
-                      const PopupMenuItem(
-                        value: 'password',
-                        child: Row(
-                          children: [
-                            Icon(Icons.lock_reset, color: AppColors.primary),
-                            SizedBox(width: 8),
-                            Text("Change Password"),
-                          ],
+                      if (isEmailUser)
+                        const PopupMenuItem(
+                          value: 'password',
+                          child: Row(
+                            children: [
+                              Icon(Icons.lock_reset, color: AppColors.primary),
+                              SizedBox(width: 8),
+                              Text("Change Password"),
+                            ],
+                          ),
                         ),
-                      ),
                       const PopupMenuItem(
                         value: 'logout',
                         child: Row(
@@ -981,6 +1009,7 @@ class _ParticipantPagesState extends State<ParticipantPages>
                 width: double.infinity,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Gap(20.h),
                     CircleAvatar(
@@ -998,6 +1027,7 @@ class _ParticipantPagesState extends State<ParticipantPages>
                     Gap(24.h),
                     Text(
                       name,
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 24.sp,
                         fontWeight: FontWeight.bold,
@@ -1026,6 +1056,7 @@ class _ParticipantPagesState extends State<ParticipantPages>
                     Gap(16.h),
                     Text(
                       email,
+                      textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 16,

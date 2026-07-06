@@ -168,6 +168,23 @@ class _QRScannerPageState extends State<QRScannerPage> {
         children: [
           MobileScanner(
             controller: controller,
+            errorBuilder: (context, error) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error, color: AppColors.error, size: 48),
+                      const SizedBox(height: 16),
+                      Text("Camera error: ${error.errorCode.name}", style: const TextStyle(color: Colors.white)),
+                      const SizedBox(height: 8),
+                      const Text("Please grant camera permissions or use the Image Upload icon.", textAlign: TextAlign.center, style: TextStyle(color: Colors.white54)),
+                    ],
+                  ),
+                ),
+              );
+            },
             onDetect: (capture) async {
               if (scanned) return;
               final barcodes = capture.barcodes.firstOrNull;

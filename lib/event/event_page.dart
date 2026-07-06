@@ -342,6 +342,16 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
                   badgeText = "Rejected";
                 }
 
+                // Check if event is passed
+                final now = DateTime.now();
+                bool isPast = eventDate != null &&
+                    eventDate.isBefore(DateTime(now.year, now.month, now.day));
+
+                if (isPast) {
+                  badgeColor = AppColors.textSecondary;
+                  badgeText = "Completed";
+                }
+
                 return Card(
                   margin: EdgeInsets.only(bottom: 12.h),
                   child: InkWell(
@@ -405,7 +415,7 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
                           )
                         ],
                       ),
-                      trailing: Row(
+                      trailing: isPast ? const SizedBox() : Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
@@ -801,6 +811,9 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
           final name = data['name'] ?? "User";
           final email = data['email'] ?? "No Email";
 
+          final user = FirebaseAuth.instance.currentUser;
+          bool isEmailUser = user?.providerData.any((p) => p.providerId == 'password') ?? false;
+
           return Scaffold(
             appBar: AppBar(
               title: const Text("Profile"),
@@ -845,14 +858,15 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
                               Text("Switch to Participant")
                             ])
                         ),
-                        const PopupMenuItem(
-                            value: 'password',
-                            child: Row(children: [
-                              Icon(Icons.lock_reset, color: AppColors.primary),
-                              SizedBox(width: 8),
-                              Text("Change Password")
-                            ])
-                        ),
+                        if (isEmailUser)
+                          const PopupMenuItem(
+                              value: 'password',
+                              child: Row(children: [
+                                Icon(Icons.lock_reset, color: AppColors.primary),
+                                SizedBox(width: 8),
+                                Text("Change Password")
+                              ])
+                          ),
                         const PopupMenuItem(
                             value: 'logout',
                             child: Row(children: [
@@ -872,6 +886,7 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
                 width: double.infinity,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Gap(20.h),
                     CircleAvatar(
@@ -889,6 +904,7 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
                     Gap(24.h),
                     Text(
                       name,
+                      textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 24.sp,
                         fontWeight: FontWeight.bold,
@@ -908,6 +924,7 @@ class _EventPageState extends State<EventPage> with WidgetsBindingObserver {
                     ),
                     Gap(16.h),
                     Text(email,
+                        textAlign: TextAlign.center,
                         style: const TextStyle(color: AppColors.textSecondary, fontSize: 16)),
                   ],
                 ),

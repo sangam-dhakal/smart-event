@@ -288,6 +288,9 @@ class EventDetailsPage extends StatelessWidget {
   }
 
   Widget _buildOrganizerActionGroups(BuildContext context) {
+    final now = DateTime.now();
+    bool isPast = eventDate != null && eventDate!.isBefore(DateTime(now.year, now.month, now.day));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -333,64 +336,69 @@ class EventDetailsPage extends StatelessWidget {
                   },
                 ),
               ),
-              Gap(8.h),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.person_add_alt_1_outlined),
-                  label: const Text("View Join Requests"),
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary.withAlpha(200)),
-                  onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) =>
-                        PendingParticipantsPage(
-                            eventId: eventId, eventTitle: eventData['title'] ?? "")));
-                  },
+              if (!isPast) ...[
+                Gap(8.h),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.person_add_alt_1_outlined),
+                    label: const Text("View Join Requests"),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary.withAlpha(200)),
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                          PendingParticipantsPage(
+                              eventId: eventId, eventTitle: eventData['title'] ?? "")));
+                    },
+                  ),
                 ),
-              ),
+              ]
             ],
           ),
         ),
         Gap(8.h),
 
-        // GROUP 2: Mail Invitations
-        Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12.r), side: BorderSide(color: AppColors.border)),
-          child: ExpansionTile(
-            leading: const Icon(Icons.mail_outline, color: AppColors.warning),
-            title: const Text("Mail Invitations", style: TextStyle(fontWeight: FontWeight.bold)),
-            childrenPadding: EdgeInsets.all(16.w),
-            children: [
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.person_add),
-                  label: const Text("Invite Single Guest (VIP)"),
-                  onPressed: () =>
-                      _showSingleInviteDialog(context, eventId, eventData['title'] ?? "",
-                          eventData['organizerId'] ?? ""),
+        // GROUP 2: Mail Invitations (Hide if event is past)
+        if (!isPast) ...[
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r),
+                side: BorderSide(color: AppColors.border)),
+            child: ExpansionTile(
+              leading: const Icon(Icons.mail_outline, color: AppColors.warning),
+              title: const Text("Mail Invitations", style: TextStyle(fontWeight: FontWeight.bold)),
+              childrenPadding: EdgeInsets.all(16.w),
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.person_add),
+                    label: const Text("Invite Single Guest (VIP)"),
+                    onPressed: () =>
+                        _showSingleInviteDialog(context, eventId, eventData['title'] ?? "",
+                            eventData['organizerId'] ?? ""),
+                  ),
                 ),
-              ),
-              Gap(8.h),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.upload_file),
-                  label: const Text("Import Invitees (CSV)"),
-                  onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) =>
-                        CsvImportPage(eventId: eventId,
-                            eventTitle: eventData['title'] ?? "",
-                            organizerId: eventData['organizerId'] ?? "")));
-                  },
+                Gap(8.h),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.upload_file),
+                    label: const Text("Import Invitees (CSV)"),
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                          CsvImportPage(eventId: eventId,
+                              eventTitle: eventData['title'] ?? "",
+                              organizerId: eventData['organizerId'] ?? "")));
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        Gap(8.h),
+          Gap(8.h),
+        ],
 
         // GROUP 3: Event Feedback
         Card(
