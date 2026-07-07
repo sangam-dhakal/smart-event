@@ -187,18 +187,22 @@ class _CsvImportPageState extends State<CsvImportPage> {
     int deptIndex = _departmentHeader != null ? _headers.indexOf(_departmentHeader!) : -1;
 
     List<Map<String, dynamic>> guests = [];
+    final seenInCsv = <String>{};
 
     for (int i = 1; i < _csvData.length; i++) {
       final row = _csvData[i];
       if (row.length > nameIndex && row.length > emailIndex) {
         String name = row[nameIndex].toString().trim();
         String email = row[emailIndex].toString().trim();
+        final cleanEmail = email.toLowerCase();
         String department = (deptIndex != -1 && row.length > deptIndex) ? row[deptIndex]
             .toString()
             .trim() : '';
 
         bool isValid = _isValidEmail(email);
-        bool isDuplicate = _existingEmails.contains(email.toLowerCase());
+        bool duplicateInEvent = _existingEmails.contains(cleanEmail);
+        bool duplicateInCsv = !seenInCsv.add(cleanEmail);
+        bool isDuplicate = duplicateInEvent || duplicateInCsv;
 
         guests.add({
           'name': name,
@@ -206,6 +210,11 @@ class _CsvImportPageState extends State<CsvImportPage> {
           'department': department,
           'isValid': isValid,
           'isDuplicate': isDuplicate,
+          'duplicateReason': duplicateInEvent
+              ? 'Already in this event'
+              : duplicateInCsv
+                  ? 'Duplicate row in CSV'
+                  : '',
           'selected': false, // NO AUTO-SELECT: Organizer must manually review and select
         });
       }
@@ -532,7 +541,7 @@ class _CsvImportPageState extends State<CsvImportPage> {
                                       .textPrimary, fontWeight: FontWeight.bold)),
                               subtitle: Text(
                                 isDuplicate
-                                    ? "Already in system"
+                                    ? guest['duplicateReason']
                                     : "${guest['email']} ${guest['department']
                                     .toString()
                                     .isNotEmpty ? '• ${guest['department']}' : ''}",

@@ -302,7 +302,7 @@ class _EventCreatePageState extends State<EventCreatePage> {
       {int maxLines = 1, TextInputType type = TextInputType.text}) {
     return TextFormField(
       controller: controller,
-      textInputAction: maxLines > 1 ? TextInputAction.newline : TextInputAction.next,
+      textInputAction: maxLines > 3 ? TextInputAction.newline : TextInputAction.next,
       maxLines: maxLines,
       keyboardType: maxLines > 1 ? TextInputType.multiline : type,
       decoration: InputDecoration(

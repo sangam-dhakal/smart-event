@@ -96,9 +96,11 @@ class SuperAdminService {
   }
 
   /// Blasts a high-priority push notification to EVERY user who installed the app
-  Future<void> sendGlobalNotification(String title, String body) async {
+  Future<Map<String, dynamic>> sendGlobalNotification(String title, String body) async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      throw Exception('User not logged in');
+    }
     
     final token = await user.getIdToken();
     final res = await http.post(
@@ -110,9 +112,22 @@ class SuperAdminService {
       body: jsonEncode({'title': title, 'body': body}),
     );
     
-    if (res.statusCode != 200) {
-      throw Exception('Failed to broadcast notification');
+    Map<String, dynamic> data = {};
+    try {
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic>) {
+        data = decoded;
+      }
+    } catch (_) {
+      data = {'raw': res.body};
     }
+
+    if (res.statusCode != 200) {
+      final error = data['error'] ?? data['message'] ?? res.body;
+      throw Exception('Failed to broadcast notification (${res.statusCode}): $error');
+    }
+
+    return data;
   }
 
   // ─── STAFF CRUD ───
