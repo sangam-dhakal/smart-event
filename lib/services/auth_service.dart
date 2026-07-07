@@ -203,14 +203,14 @@ class AuthService {
       if (user != null) {
         // Unsubscribe from global broadcast topic
         await FirebaseMessaging.instance.unsubscribeFromTopic('participants');
-        
+
         // Remove token from Firestore so targeted pushes fail gracefully
         try {
           await _db.collection('users').doc(user.uid).update({
             'fcmToken': FieldValue.delete(),
           });
         } catch (_) {}
-        
+
         // Delete local FCM token to stop any lingering pushes to this app instance
         await FirebaseMessaging.instance.deleteToken();
       }

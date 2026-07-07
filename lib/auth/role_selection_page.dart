@@ -25,7 +25,6 @@ class _RoleSelectionPageState extends ConsumerState<RoleSelectionPage> {
 
       if (uid != null) {
         await auth.updateRole(uid, role);
-        await auth.syncFcmTokenForCurrentUser();
 
         if (!mounted) return;
 

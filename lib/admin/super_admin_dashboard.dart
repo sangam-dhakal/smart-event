@@ -8,7 +8,6 @@ import 'package:gap/gap.dart';
 import 'package:smart_event_app/admin/admin_event_report_page.dart';
 import 'package:smart_event_app/admin/super_admin_service.dart';
 import 'package:smart_event_app/auth/login_page.dart';
-import 'package:smart_event_app/participant/participant_service.dart';
 import 'package:smart_event_app/services/auth_service.dart';
 import 'package:smart_event_app/theme/app_colors.dart';
 
@@ -394,20 +393,6 @@ class _ApprovalsTab extends StatelessWidget {
                                 "targetUserId": data['organizerId'],
                                 "targetRole": "organizer", // FIX: Lock to organizer role
                               });
-
-                              final organizerDoc = await FirebaseFirestore.instance
-                                  .collection('users')
-                                  .doc(data['organizerId'])
-                                  .get();
-                              final fcmToken = organizerDoc.data()?['fcmToken'];
-                              if (fcmToken != null && fcmToken.toString().isNotEmpty) {
-                                await ParticipantService().sendPushNotification(
-                                  targetFcmToken: fcmToken.toString(),
-                                  title: "Event Verification Failed",
-                                  body: "Your event '${data['title']}' was rejected by the Admin.",
-                                  eventId: doc.id,
-                                );
-                              }
                             }
                           },
                         ),
@@ -453,20 +438,6 @@ class _ApprovalsTab extends StatelessWidget {
                                 "targetUserId": data['organizerId'],
                                 "targetRole": "organizer", // FIX: Lock to organizer role
                               });
-
-                              final organizerDoc = await FirebaseFirestore.instance
-                                  .collection('users')
-                                  .doc(data['organizerId'])
-                                  .get();
-                              final fcmToken = organizerDoc.data()?['fcmToken'];
-                              if (fcmToken != null && fcmToken.toString().isNotEmpty) {
-                                await ParticipantService().sendPushNotification(
-                                  targetFcmToken: fcmToken.toString(),
-                                  title: "Event Approved!",
-                                  body: "Your event '${data['title']}' is verified and publicly visible.",
-                                  eventId: doc.id,
-                                );
-                              }
                             }
                           },
                         ),
@@ -691,18 +662,13 @@ class _BroadcastTabState extends State<_BroadcastTab> {
 
                   setState(() => isSending = true);
                   try {
-                    final result = await _service.sendGlobalNotification(
+                    await _service.sendGlobalNotification(
                         titleController.text, bodyController.text);
                     titleController.clear();
                     bodyController.clear();
                     if (context.mounted) {
-                      final sent = result['sentCount'] ?? result['successCount'] ?? result['sent'];
-                      final failed = result['failureCount'] ?? result['failedCount'] ?? result['failed'];
-                      final detail = sent != null
-                          ? " Sent: $sent${failed != null ? ', Failed: $failed' : ''}"
-                          : "";
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(
-                          "Broadcast request accepted.$detail"), backgroundColor: Colors.green));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text(
+                          "Broadcast Transmitted Globally!"), backgroundColor: Colors.green));
                     }
                   } catch (e) {
                     if (context.mounted) {

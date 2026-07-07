@@ -44,30 +44,6 @@ class EventService {
     data['approvalStatus'] = 'pending';
     
     await _db.collection('events').doc(id).update(data);
-
-    final participants = await _db
-        .collection('participants')
-        .where('eventId', isEqualTo: id)
-        .get();
-
-    final batch = _db.batch();
-    for (final participant in participants.docs) {
-      batch.update(participant.reference, {
-        'eventTitle': data['title'],
-        'eventDate': data['date'],
-      });
-    }
-    await batch.commit();
-
-    await _db.collection("notifications").add({
-      "title": "Event Pending Verification",
-      "body": "Your updated event '${data['title']}' was sent to the Admin for approval.",
-      "time": FieldValue.serverTimestamp(),
-      "isRead": false,
-      "eventId": id,
-      "targetUserId": user?.uid,
-      "targetRole": "organizer",
-    });
   }
 
   // CREATE EVENT
