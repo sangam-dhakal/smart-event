@@ -15,6 +15,21 @@ class AuthService {
 
   String? get currentUserId => _auth.currentUser?.uid;
 
+  /// Internal Method to setup push notifications on Auth state
+  Future<void> _setupPushOnAuth(User user) async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        await _db.collection('users').doc(user.uid).set({
+          'fcmToken': token
+        }, SetOptions(merge: true));
+      }
+      await FirebaseMessaging.instance.subscribeToTopic("participants");
+    } catch (e) {
+      debugPrint("FCM Setup Error: $e");
+    }
+  }
+
   /// Internal Method to link auto-generated CSV invitations to a newly logged-in user
   Future<void> _linkPendingInvitations(User user) async {
     try {
@@ -24,13 +39,6 @@ class AuthService {
       if (emailExact == null || emailExact.isEmpty) return;
 
       final batch = _db.batch();
-      String? fcmToken;
-      try {
-        fcmToken = await FirebaseMessaging.instance.getToken();
-      } catch (e) {
-        debugPrint("FCM Fetch Failed During Linking: $e");
-      }
-
       bool needsCommit = false;
 
       // Checking both precise case and lowercase guarantees invites don't get lost
@@ -45,8 +53,6 @@ class AuthService {
         for (var doc in query.docs) {
           batch.update(doc.reference, {
             'userId': user.uid,
-            // Explicitly maintaining the status as 'invited' so they can manually accept
-            if (fcmToken != null) 'fcmToken': fcmToken,
           });
           needsCommit = true;
         }
@@ -54,9 +60,6 @@ class AuthService {
 
       if (needsCommit) {
         await batch.commit();
-        try {
-          await FirebaseMessaging.instance.subscribeToTopic("participants");
-        } catch (_) {}
       }
     } catch (e) {
       debugPrint("Error linking invitations: $e");
@@ -88,7 +91,8 @@ class AuthService {
       if (role == 'organizer' && location != null) 'location': location.trim(),
     });
 
-    // Attempt to link invitations
+    // Setup FCM and link invitations
+    await _setupPushOnAuth(user.user!);
     await _linkPendingInvitations(user.user!);
   }
 
@@ -100,6 +104,7 @@ class AuthService {
     );
 
     if (user.user != null) {
+      await _setupPushOnAuth(user.user!);
       await _linkPendingInvitations(user.user!);
     }
 
@@ -163,6 +168,7 @@ class AuthService {
           });
         }
 
+        await _setupPushOnAuth(user);
         await _linkPendingInvitations(user);
       }
 
@@ -192,6 +198,26 @@ class AuthService {
 
   /// Flushes current caching configurations and breaks Active Firebase Session mappings
   Future<void> logout() async {
+    try {
+      final user = _auth.currentUser;
+      if (user != null) {
+        // Unsubscribe from global broadcast topic
+        await FirebaseMessaging.instance.unsubscribeFromTopic('participants');
+        
+        // Remove token from Firestore so targeted pushes fail gracefully
+        try {
+          await _db.collection('users').doc(user.uid).update({
+            'fcmToken': FieldValue.delete(),
+          });
+        } catch (_) {}
+        
+        // Delete local FCM token to stop any lingering pushes to this app instance
+        await FirebaseMessaging.instance.deleteToken();
+      }
+    } catch (e) {
+      debugPrint("Error clearing FCM data on logout: $e");
+    }
+
     // Clear management cache so a different user isn't accidentally logged in as admin
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('isManagement');

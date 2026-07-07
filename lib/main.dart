@@ -77,20 +77,23 @@ Future<void> setupFCM() async {
     // Request Permission
     await messaging.requestPermission(alert: true, badge: true, sound: true);
 
-    // Save Organizer/User FCM Token so Admins can push to them
+    // Save Organizer/User FCM Token so Admins can push to them ONLY if logged in
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final token = await messaging.getToken();
-      if (token != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .update({'fcmToken': token});
+      try {
+        final token = await messaging.getToken();
+        if (token != null) {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set({'fcmToken': token}, SetOptions(merge: true));
+        }
+        // Subscribe ONLY logged-in users to the global broadcast topic
+        await messaging.subscribeToTopic("participants");
+      } catch (e) {
+        debugPrint("Error registering FCM token: $e");
       }
     }
-
-    // Subscribe ALL participants
-    await messaging.subscribeToTopic("participants");
 
     // LOCAL NOTIFICATION SETUP
     try {
