@@ -1,0 +1,81 @@
+@startuml
+title Smart Event - Main System Sequence
+
+skinparam shadowing false
+skinparam monochrome true
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 16
+skinparam BoxPadding 8
+skinparam MaxMessageSize 70
+skinparam dpi 160
+
+actor User
+participant "Flutter App" as App
+participant "Firebase Auth" as Auth
+database "Firestore" as DB
+participant "Management User" as Admin
+participant "Vercel API / FCM" as API
+
+User -> App: Open app / log in / register
+App -> Auth: Authenticate user
+Auth --> App: Firebase user
+App -> DB: Read users/{uid}.role\nand link invited records by email
+DB --> App: Role, profile, invite state
+
+alt Management role verified
+  App -> API: Check super_admin / staff_admin
+  API --> App: Management role
+  App --> User: Show management dashboard
+else Organizer
+  App --> User: Show organizer dashboard
+else Participant
+  App --> User: Show participant dashboard
+else No role
+  App --> User: Ask user to select role
+end
+
+group Organizer creates event
+  User -> App: Submit event form
+  App -> App: Validate required fields,\ncapacity, date, registration deadline
+  App -> DB: Create/update event\napprovalStatus = pending
+  DB --> App: Event saved
+  App --> User: Pending verification
+end
+
+group Management approves event
+  Admin -> App: Approve or reject pending event
+  App -> DB: Update events/{eventId}.approvalStatus
+  App -> DB: Create targeted organizer notification
+  DB --> App: Event status updated
+  App --> Admin: Approval action complete
+end
+
+group Participant joins event
+  User -> App: Explore approved event\nApply or accept invite
+  App -> DB: Create/update participants record\nstatus = pending / accepted / rejected
+  App -> DB: Create targeted notification
+  opt Request accepted or rejected by organizer
+    User -> App: Organizer decision
+    App -> DB: Validate capacity and update status
+    App -> API: Send push notification
+    API --> User: FCM / local notification
+  end
+end
+
+group QR attendance
+  User -> App: Show accepted QR ticket\nor scan QR at venue
+  App -> DB: Validate guestId, eventId,\nstatus, duplicate check-in, scan time
+  DB --> App: Participant and event data
+  App -> DB: Set attendance = true\ncheckInTime = server timestamp
+  App --> User: Attendance marked
+end
+
+group Feedback and reporting
+  User -> App: Submit rating after attendance
+  App -> DB: Upsert feedbacks/{uid_eventId}
+  Admin -> App: View reports / analytics
+  App -> DB: Stream participants and feedback
+  DB --> App: Attendance counts and reviews
+  App --> Admin: Report dashboard
+end
+@enduml

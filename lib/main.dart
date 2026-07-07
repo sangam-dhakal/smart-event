@@ -85,7 +85,10 @@ Future<void> setupFCM() async {
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
-            .update({'fcmToken': token});
+            .set({
+              'fcmToken': token,
+              'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
       }
     }
 
@@ -131,6 +134,18 @@ Future<void> setupFCM() async {
       showNotification(message);
     });
 
+    FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
+      final refreshedUser = FirebaseAuth.instance.currentUser;
+      if (refreshedUser == null) return;
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(refreshedUser.uid)
+          .set({
+            'fcmToken': token,
+            'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+    });
+
     // ON CLICK
     FirebaseMessaging.onMessageOpenedApp.listen((message) async {
       final eventId = message.data['eventId'];
@@ -170,11 +185,15 @@ Future<void> showNotification(RemoteMessage message) async {
   try {
     final title =
         message.notification?.title ??
+        message.data['title'] ??
         message.data['newsTitle'] ??
         "Event Update";
 
     final body =
-        message.notification?.body ?? message.data['newsDescription'] ?? "";
+        message.notification?.body ??
+        message.data['body'] ??
+        message.data['newsDescription'] ??
+        "";
 
     await localNotifications.show(
       DateTime.now().millisecondsSinceEpoch,

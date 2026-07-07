@@ -15,6 +15,37 @@ class AuthService {
 
   String? get currentUserId => _auth.currentUser?.uid;
 
+  Future<String?> syncFcmTokenForCurrentUser() async {
+    final user = _auth.currentUser;
+    if (user == null) return null;
+
+    try {
+      final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission(alert: true, badge: true, sound: true);
+      final token = await messaging.getToken();
+      if (token == null || token.isEmpty) return null;
+
+      await _db.collection('users').doc(user.uid).set({
+        'fcmToken': token,
+        'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+        final refreshedUser = _auth.currentUser;
+        if (refreshedUser == null) return;
+        await _db.collection('users').doc(refreshedUser.uid).set({
+          'fcmToken': newToken,
+          'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      });
+
+      return token;
+    } catch (e) {
+      debugPrint("FCM token sync failed: $e");
+      return null;
+    }
+  }
+
   /// Internal Method to link auto-generated CSV invitations to a newly logged-in user
   Future<void> _linkPendingInvitations(User user) async {
     try {
@@ -24,12 +55,7 @@ class AuthService {
       if (emailExact == null || emailExact.isEmpty) return;
 
       final batch = _db.batch();
-      String? fcmToken;
-      try {
-        fcmToken = await FirebaseMessaging.instance.getToken();
-      } catch (e) {
-        debugPrint("FCM Fetch Failed During Linking: $e");
-      }
+      final fcmToken = await syncFcmTokenForCurrentUser();
 
       bool needsCommit = false;
 
@@ -90,6 +116,7 @@ class AuthService {
 
     // Attempt to link invitations
     await _linkPendingInvitations(user.user!);
+    await syncFcmTokenForCurrentUser();
   }
 
   /// Logs a user in using traditional Email/Password architecture
@@ -101,6 +128,7 @@ class AuthService {
 
     if (user.user != null) {
       await _linkPendingInvitations(user.user!);
+      await syncFcmTokenForCurrentUser();
     }
 
     return user.user;
@@ -164,6 +192,7 @@ class AuthService {
         }
 
         await _linkPendingInvitations(user);
+        await syncFcmTokenForCurrentUser();
       }
 
       return user;

@@ -31,6 +31,67 @@ class ParticipantService {
     return "TBD";
   }
 
+  String _cleanEmail(String email) => email.trim().toLowerCase();
+
+  Future<QueryDocumentSnapshot<Map<String, dynamic>>?> _findEventParticipantByEmail({
+    required String eventId,
+    required String email,
+  }) async {
+    final cleanEmail = _cleanEmail(email);
+    final exactEmail = email.trim();
+
+    for (final candidate in {cleanEmail, exactEmail}) {
+      final query = await _db
+          .collection('participants')
+          .where('eventId', isEqualTo: eventId)
+          .where('email', isEqualTo: candidate)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        return query.docs.first;
+      }
+    }
+
+    final userQuery = await _db
+        .collection('users')
+        .where('email', whereIn: cleanEmail == exactEmail
+            ? [cleanEmail]
+            : [cleanEmail, exactEmail])
+        .limit(1)
+        .get();
+
+    if (userQuery.docs.isEmpty) return null;
+
+    final participantByUser = await _db
+        .collection('participants')
+        .where('eventId', isEqualTo: eventId)
+        .where('userId', isEqualTo: userQuery.docs.first.id)
+        .limit(1)
+        .get();
+
+    if (participantByUser.docs.isNotEmpty) {
+      return participantByUser.docs.first;
+    }
+
+    return null;
+  }
+
+  String _existingParticipantMessage(
+    String email,
+    Map<String, dynamic> data,
+  ) {
+    final status = (data['status'] ?? 'registered').toString();
+    final type = (data['type'] ?? 'participant').toString();
+    if (type == 'request') {
+      return "$email has already applied to this event ($status).";
+    }
+    if (type == 'invite') {
+      return "$email has already been invited to this event ($status).";
+    }
+    return "$email is already registered for this event ($status).";
+  }
+
   // ─── EMAILJS INTEGRATION ───
   Future<void> _sendEmailJs({
     required String eventId, // ADDED EVENT ID FOR DEEP LINKING
@@ -124,6 +185,7 @@ class ParticipantService {
         },
         body: jsonEncode({
           'token': targetFcmToken,
+          'fcmToken': targetFcmToken,
           'title': title,
           'body': body,
           'eventId': eventId,
@@ -251,6 +313,7 @@ class ParticipantService {
     required bool sendEmail,
   }) async {
     final batch = _db.batch();
+    final emailTasks = <Future<void>>[];
 
     final eventDoc = await _db.collection('events').doc(eventId).get();
     final eventData = eventDoc.data() ?? {};
@@ -260,10 +323,28 @@ class ParticipantService {
     final eVenue = eventData['venue'] ?? 'TBD';
     final eOrganizer = eventData['organizer'] ?? 'an Organizer';
     final eOrganization = eventData['organization'] ?? 'an Organization';
+    final seenEmails = <String>{};
+
+    for (final guest in guests) {
+      final email = guest['email']!.trim();
+      final cleanEmail = _cleanEmail(email);
+
+      if (!seenEmails.add(cleanEmail)) {
+        throw Exception("$email appears more than once in the selected CSV rows.");
+      }
+
+      final existing = await _findEventParticipantByEmail(
+        eventId: eventId,
+        email: email,
+      );
+      if (existing != null) {
+        throw Exception(_existingParticipantMessage(email, existing.data()));
+      }
+    }
 
     for (var guest in guests) {
       final email = guest['email']!.trim();
-      final cleanEmail = email.toLowerCase();
+      final cleanEmail = _cleanEmail(email);
       final name = guest['name']!.trim();
       final department = guest['department'] ?? '';
 
@@ -310,7 +391,7 @@ class ParticipantService {
       }, SetOptions(merge: true));
 
       if (sendEmail) {
-        _sendEmailJs(
+        emailTasks.add(_sendEmailJs(
           eventId: eventId,
           toEmail: email,
           guestName: name,
@@ -320,11 +401,14 @@ class ParticipantService {
           eventVenue: eVenue,
           organizerName: eOrganizer,
           organizationName: eOrganization,
-        );
+        ));
       }
     }
 
     await batch.commit();
+    if (emailTasks.isNotEmpty) {
+      await Future.wait(emailTasks);
+    }
   }
 
   // SINGLE GUEST INVITE (VIP / Special Appearance) WITH OPTIONAL EMAIL
@@ -342,6 +426,16 @@ class ParticipantService {
     final cleanEmail = email.trim().toLowerCase();
     final exactEmail = email.trim();
     final cleanName = name.trim();
+
+    final existingParticipant = await _findEventParticipantByEmail(
+      eventId: eventId,
+      email: exactEmail,
+    );
+    if (existingParticipant != null) {
+      throw Exception(
+        _existingParticipantMessage(exactEmail, existingParticipant.data()),
+      );
+    }
 
     final inviteeDocId =
         "INVITE_${cleanEmail.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}_$eventId";

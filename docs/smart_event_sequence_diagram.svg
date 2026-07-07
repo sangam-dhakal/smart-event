@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">Smart Event - Main System Sequence</title>
+  <desc id="desc">Report-friendly UML sequence diagram for login, role routing, event approval, participant joining, QR attendance, and reporting.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#263238"/>
+    </marker>
+    <style>
+      .title { font: 700 24px Arial, sans-serif; fill: #102027; }
+      .lane { fill: #ffffff; stroke: #263238; stroke-width: 1.4; rx: 6; }
+      .actor { fill: #f7f9fb; stroke: #263238; stroke-width: 1.4; rx: 6; }
+      .label { font: 700 13px Arial, sans-serif; fill: #102027; text-anchor: middle; }
+      .msg { font: 12px Arial, sans-serif; fill: #102027; text-anchor: middle; }
+      .note { font: 700 12px Arial, sans-serif; fill: #455a64; }
+      .life { stroke: #90a4ae; stroke-width: 1.1; stroke-dasharray: 6 6; }
+      .arrow { stroke: #263238; stroke-width: 1.35; fill: none; marker-end: url(#arrow); }
+      .return { stroke: #607d8b; stroke-width: 1.25; fill: none; stroke-dasharray: 5 4; marker-end: url(#arrow); }
+      .group { fill: #f8fbfd; stroke: #b0bec5; stroke-width: 1; rx: 8; }
+      .groupText { font: 700 12px Arial, sans-serif; fill: #37474f; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1200" height="760" fill="#ffffff"/>
+  <text x="600" y="34" class="title" text-anchor="middle">Smart Event - Main System Sequence</text>
+
+  <!-- Participant headers -->
+  <rect x="35" y="58" width="130" height="42" class="actor"/>
+  <rect x="205" y="58" width="130" height="42" class="lane"/>
+  <rect x="385" y="58" width="130" height="42" class="lane"/>
+  <rect x="565" y="58" width="130" height="42" class="lane"/>
+  <rect x="745" y="58" width="130" height="42" class="actor"/>
+  <rect x="925" y="58" width="170" height="42" class="lane"/>
+
+  <text x="100" y="84" class="label">User</text>
+  <text x="270" y="84" class="label">Flutter App</text>
+  <text x="450" y="84" class="label">Firebase Auth</text>
+  <text x="630" y="84" class="label">Firestore</text>
+  <text x="810" y="84" class="label">Management</text>
+  <text x="1010" y="84" class="label">Vercel API / FCM</text>
+
+  <!-- Lifelines -->
+  <line x1="100" y1="100" x2="100" y2="725" class="life"/>
+  <line x1="270" y1="100" x2="270" y2="725" class="life"/>
+  <line x1="450" y1="100" x2="450" y2="725" class="life"/>
+  <line x1="630" y1="100" x2="630" y2="725" class="life"/>
+  <line x1="810" y1="100" x2="810" y2="725" class="life"/>
+  <line x1="1010" y1="100" x2="1010" y2="725" class="life"/>
+
+  <!-- Auth and routing -->
+  <rect x="24" y="114" width="1088" height="128" class="group"/>
+  <text x="38" y="132" class="groupText">Entry, authentication, and role routing</text>
+  <line x1="100" y1="154" x2="270" y2="154" class="arrow"/>
+  <text x="185" y="148" class="msg">Open app / login / register</text>
+  <line x1="270" y1="180" x2="450" y2="180" class="arrow"/>
+  <text x="360" y="174" class="msg">Authenticate</text>
+  <line x1="450" y1="206" x2="270" y2="206" class="return"/>
+  <text x="360" y="200" class="msg">Firebase user</text>
+  <line x1="270" y1="232" x2="630" y2="232" class="arrow"/>
+  <text x="450" y="226" class="msg">Read role, profile, and link invited records by email</text>
+
+  <rect x="214" y="254" width="520" height="70" class="group"/>
+  <text x="228" y="274" class="groupText">Decision</text>
+  <line x1="270" y1="294" x2="1010" y2="294" class="arrow"/>
+  <text x="640" y="288" class="msg">If possible, verify super_admin / staff_admin</text>
+  <line x1="1010" y1="318" x2="270" y2="318" class="return"/>
+  <text x="640" y="312" class="msg">Management role or normal app role</text>
+
+  <!-- Event approval -->
+  <rect x="24" y="342" width="1088" height="110" class="group"/>
+  <text x="38" y="360" class="groupText">Organizer creates an event and management verifies it</text>
+  <line x1="100" y1="384" x2="270" y2="384" class="arrow"/>
+  <text x="185" y="378" class="msg">Submit event form</text>
+  <line x1="270" y1="410" x2="630" y2="410" class="arrow"/>
+  <text x="450" y="404" class="msg">Validate fields, save event with approvalStatus = pending</text>
+  <line x1="810" y1="436" x2="630" y2="436" class="arrow"/>
+  <text x="720" y="430" class="msg">Approve / reject</text>
+  <line x1="630" y1="436" x2="270" y2="436" class="return"/>
+  <text x="450" y="456" class="msg">Status update + targeted organizer notification</text>
+
+  <!-- Participant joins -->
+  <rect x="24" y="472" width="1088" height="120" class="group"/>
+  <text x="38" y="490" class="groupText">Participant applies or responds to invitation</text>
+  <line x1="100" y1="514" x2="270" y2="514" class="arrow"/>
+  <text x="185" y="508" class="msg">Explore approved event, apply, or accept invite</text>
+  <line x1="270" y1="540" x2="630" y2="540" class="arrow"/>
+  <text x="450" y="534" class="msg">Create/update participant record: pending, accepted, or rejected</text>
+  <line x1="100" y1="566" x2="270" y2="566" class="arrow"/>
+  <text x="185" y="560" class="msg">Organizer decides request</text>
+  <line x1="270" y1="566" x2="630" y2="566" class="arrow"/>
+  <text x="450" y="586" class="msg">Validate capacity, update status, create notification</text>
+  <line x1="270" y1="586" x2="1010" y2="586" class="arrow"/>
+  <text x="640" y="580" class="msg">Send push notification when FCM token exists</text>
+
+  <!-- QR and reporting -->
+  <rect x="24" y="612" width="1088" height="112" class="group"/>
+  <text x="38" y="630" class="groupText">QR attendance, feedback, and reports</text>
+  <line x1="100" y1="654" x2="270" y2="654" class="arrow"/>
+  <text x="185" y="648" class="msg">Show accepted QR or scan at venue</text>
+  <line x1="270" y1="680" x2="630" y2="680" class="arrow"/>
+  <text x="450" y="674" class="msg">Validate guestId, eventId, duplicate check-in, scan window</text>
+  <line x1="630" y1="706" x2="270" y2="706" class="return"/>
+  <text x="450" y="700" class="msg">Participant and event data</text>
+  <line x1="270" y1="724" x2="630" y2="724" class="arrow"/>
+  <text x="450" y="742" class="msg">Set attendance = true; feedback and reports stream from Firestore</text>
+</svg>

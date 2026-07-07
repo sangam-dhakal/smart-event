@@ -44,6 +44,13 @@ class EventDetailsPage extends StatelessWidget {
     return "$hour:$minute $period";
   }
 
+  DateTime? safeDate(dynamic dateField) {
+    if (dateField == null) return null;
+    if (dateField is Timestamp) return dateField.toDate();
+    if (dateField is String) return DateTime.tryParse(dateField);
+    return null;
+  }
+
   // ─── OFFLINE FEATURE LOGIC ───
   Future<void> _downloadForOffline(BuildContext context) async {
     try {
@@ -287,9 +294,14 @@ class EventDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildOrganizerActionGroups(BuildContext context) {
+  Widget _buildOrganizerActionGroups(
+    BuildContext context,
+    Map<String, dynamic> currentEventData,
+    DateTime? currentEventDate,
+  ) {
     final now = DateTime.now();
-    bool isPast = eventDate != null && eventDate!.isBefore(DateTime(now.year, now.month, now.day));
+    bool isPast = currentEventDate != null &&
+        currentEventDate.isBefore(DateTime(now.year, now.month, now.day));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -332,7 +344,7 @@ class EventDetailsPage extends StatelessWidget {
                   label: const Text("Manage Guests"),
                   onPressed: () {
                     Navigator.push(context, MaterialPageRoute(builder: (_) =>
-                        ManageGuestsPage(eventId: eventId, eventTitle: eventData['title'] ?? "")));
+                        ManageGuestsPage(eventId: eventId, eventTitle: currentEventData['title'] ?? "")));
                   },
                 ),
               ),
@@ -348,7 +360,7 @@ class EventDetailsPage extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(context, MaterialPageRoute(builder: (_) =>
                           PendingParticipantsPage(
-                              eventId: eventId, eventTitle: eventData['title'] ?? "")));
+                              eventId: eventId, eventTitle: currentEventData['title'] ?? "")));
                     },
                   ),
                 ),
@@ -376,8 +388,8 @@ class EventDetailsPage extends StatelessWidget {
                     icon: const Icon(Icons.person_add),
                     label: const Text("Invite Single Guest (VIP)"),
                     onPressed: () =>
-                        _showSingleInviteDialog(context, eventId, eventData['title'] ?? "",
-                            eventData['organizerId'] ?? ""),
+                        _showSingleInviteDialog(context, eventId, currentEventData['title'] ?? "",
+                            currentEventData['organizerId'] ?? ""),
                   ),
                 ),
                 Gap(8.h),
@@ -389,8 +401,8 @@ class EventDetailsPage extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(context, MaterialPageRoute(builder: (_) =>
                           CsvImportPage(eventId: eventId,
-                              eventTitle: eventData['title'] ?? "",
-                              organizerId: eventData['organizerId'] ?? "")));
+                              eventTitle: currentEventData['title'] ?? "",
+                              organizerId: currentEventData['organizerId'] ?? "")));
                     },
                   ),
                 ),
@@ -411,7 +423,7 @@ class EventDetailsPage extends StatelessWidget {
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {
               Navigator.push(context, MaterialPageRoute(builder: (_) =>
-                  FeedbackListPage(eventId: eventId, eventTitle: eventData['title'] ?? "")));
+                  FeedbackListPage(eventId: eventId, eventTitle: currentEventData['title'] ?? "")));
             },
           ),
         ),
@@ -426,9 +438,20 @@ class EventDetailsPage extends StatelessWidget {
       return const Scaffold(body: Center(child: Text("User not logged in")));
     }
     final authService = AuthService();
-    final time = parseTime(eventData['time']);
 
-    return Scaffold(
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('events').doc(eventId).snapshots(),
+      builder: (context, eventSnapshot) {
+        if (eventSnapshot.connectionState == ConnectionState.waiting &&
+            !eventSnapshot.hasData) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        final eventData = eventSnapshot.data?.data() ?? this.eventData;
+        final eventDate = safeDate(eventData['date']) ?? this.eventDate;
+        final time = parseTime(eventData['time']);
+
+        return Scaffold(
       appBar: AppBar(
         title: const Text('Event Details'),
         actions: [
@@ -555,7 +578,7 @@ class EventDetailsPage extends StatelessWidget {
                               SizedBox(width: 8.w),
                               Text(
                                 eventDate != null
-                                    ? "${eventDate!.day}-${eventDate!.month}-${eventDate!.year}"
+                                    ? "${eventDate.day}-${eventDate.month}-${eventDate.year}"
                                     : '',
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold, color: AppColors.primary),
@@ -869,7 +892,7 @@ class EventDetailsPage extends StatelessWidget {
 
                 // ── ORGANIZER UI ──
                 if (role == "organizer" && eventData['organizerId'] == user.uid) {
-                  return _buildOrganizerActionGroups(context);
+                  return _buildOrganizerActionGroups(context, eventData, eventDate);
                 }
 
                 return const SizedBox();
@@ -878,6 +901,8 @@ class EventDetailsPage extends StatelessWidget {
           ],
         ),
       ),
+    );
+      },
     );
   }
 }
